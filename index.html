@@ -99,7 +99,7 @@ tfoot td{font-weight:700;background:#f6f8fa}
 .pi:hover{border-color:var(--pri);box-shadow:0 0 0 2px rgba(15,92,140,.12)}
 .pi b{display:block;font-weight:600;line-height:1.25}.pi small{color:var(--mut);display:block}
 .pi .pr{font:700 16px 'Barlow Semi Condensed';color:var(--pri);margin-top:5px}
-.pi.out{opacity:.45}
+.pi.out{opacity:.45;cursor:not-allowed}
 .ci{display:grid;grid-template-columns:1fr 64px 96px 80px 26px;gap:6px;align-items:center;padding:8px 0;border-bottom:1px dashed var(--line)}
 .ci input{padding:5px 7px}.ci small{color:var(--mut);display:block}
 .ci .x{border:0;background:none;color:var(--bad);cursor:pointer;font-size:18px}
@@ -261,7 +261,7 @@ async function boot() {
     const r = await api('init');
     Object.assign(S, { user: r.user, cfg: r.settings, barang: r.barang, pelanggan: r.pelanggan, supplier: r.supplier });
     $('#login').style.display = 'none'; $('#app').style.display = 'block';
-    $('#sName').textContent = S.cfg.nama_toko || 'Menara Ban'; document.title = (S.cfg.nama_toko || 'Menara Ban');
+    $('#sName').textContent = S.cfg.nama_toko || 'Menara Ban'; document.title = (S.cfg.nama_toko || 'Menara Ban') + ' - Aplikasi Toko';
     $('#meName').textContent = S.user.nama; $('#meRole').textContent = S.user.role === 'admin' ? 'Administrator' : 'Kasir';
     buildNav(); route();
   } catch (x) { if (S.token) fail(x); }
@@ -322,13 +322,14 @@ async function pDashboard(v) {
 /* ============ KASIR ============ */
 async function pKasir(v) {
   S.barang = await api('list', { sheet: 'Barang' });
+  S.nextNo = await api('nextNo');
   v.innerHTML = `<div class="pos"><div class="card"><div class="bar"><input class="grow" id="q" placeholder="Cari nama, merek, ukuran, kode barang..."><select id="kat"><option value="">Semua kategori</option>${cats().map(c => `<option>${e(c)}</option>`).join('')}</select></div><div class="plist" id="plist"></div></div><div class="card" id="cart"></div></div>`;
   $('#q').oninput = $('#kat').onchange = prodList; prodList(); cartRender(); $('#q').focus();
 }
 function prodList() {
   const q = $('#q').value.toLowerCase(), k = $('#kat').value;
   const L = S.barang.filter(b => b.Aktif !== 'N' && (!k || b.Kategori === k) && (b.Kode + b.Nama + b.Merek + b.Ukuran).toLowerCase().includes(q)).slice(0, 80);
-  $('#plist').innerHTML = L.map(b => { const out = b.Kategori !== 'Jasa' && b.Stok <= 0; return `<button class="pi ${out ? 'out' : ''}" onclick="addCart('${b.ID}')"><b>${e(b.Nama)}</b><small>${e([b.Merek, b.Ukuran].filter(Boolean).join(' · '))}</small><div class="pr">${rp(b.HargaJual)}</div><small>${b.Kategori === 'Jasa' ? 'Jasa' : 'Stok: ' + b.Stok + ' ' + e(b.Satuan)}</small></button>`; }).join('') || '<p class="empty">Barang tidak ditemukan</p>';
+  $('#plist').innerHTML = L.map(b => { const out = b.Kategori !== 'Jasa' && b.Stok <= 0; return `<button class="pi ${out ? 'out' : ''}" ${out ? 'disabled title="Stok habis"' : ''} onclick="addCart('${b.ID}')"><b>${e(b.Nama)}</b><small>${e([b.Merek, b.Ukuran].filter(Boolean).join(' · '))}</small><div class="pr">${rp(b.HargaJual)}</div><small>${b.Kategori === 'Jasa' ? 'Jasa' : (out ? 'Stok habis' : 'Stok: ' + b.Stok + ' ' + e(b.Satuan))}</small></button>`; }).join('') || '<p class="empty">Barang tidak ditemukan</p>';
 }
 function addCart(id) {
   const b = S.barang.find(x => x.ID === id), j = b.Kategori === 'Jasa', c = S.cart.find(x => x.id === id);
@@ -358,6 +359,8 @@ function cartRender() {
   <div class="sum"><div class="row"><span>Subtotal</span><b id="tSub"></b></div>
   <div class="row"><span>Diskon nota (Rp)</span><input class="num" inputmode="numeric" id="pD" value="${p.diskon || ''}" placeholder="0"></div>
   <div class="row"><span>Total</span><span class="tot" id="tTot"></span></div>
+  <div class="row"><span>No. Nota</span><span class="pw"><input id="pN" value="${e(p.noManual ? p.no : S.nextNo)}" style="width:150px;text-align:left"><button class="btn" onclick="noAuto()" title="Kembali ke nomor otomatis">↺</button></span></div>
+  <div class="note" style="text-align:right">Otomatis. Ketik untuk mengganti dengan nomor manual.</div>
   <div class="row"><span>Pelanggan</span><span class="pw"><select id="pP" style="width:150px"><option>Umum</option>${S.pelanggan.map(x => `<option ${p.pel === x.Nama ? 'selected' : ''}>${e(x.Nama)}</option>`).join('')}</select><button class="btn" onclick="newCust()">+</button></span></div>
   <div class="row"><span>Metode</span><select id="pM">${['Tunai', 'Transfer', 'QRIS', 'Debit'].map(m => `<option ${p.metode === m ? 'selected' : ''}>${m}</option>`).join('')}</select></div>
   <div class="row"><span>Dibayar (Rp)</span><span class="pw"><input class="num" inputmode="numeric" id="pB" value="${p.bayar ?? ''}" placeholder="kosong = lunas pas"></span></div>
@@ -367,7 +370,9 @@ function cartRender() {
   ${S.cart.length ? '<button class="btn d" onclick="S.cart=[];S.pos={};cartRender()">Kosongkan</button>' : ''}</div>`;
   const sync = () => { p.diskon = $('#pD').value; p.bayar = $('#pB').value; p.pel = $('#pP').value; p.metode = $('#pM').value; p.cat = $('#pC').value; cartCalc(); };
   ['#pD', '#pB', '#pP', '#pM', '#pC'].forEach(s => $(s).oninput = $(s).onchange = sync); cartCalc();
+  $('#pN').oninput = () => { p.no = $('#pN').value; p.noManual = true; };
 }
+function noAuto() { S.pos.noManual = false; S.pos.no = ''; cartRender(); }
 function newCust() {
   formModal('Pelanggan Baru', CUST_F, {}, async o => { await api('save', { sheet: 'Pelanggan', row: o }); S.pelanggan = await api('list', { sheet: 'Pelanggan' }); S.pos.pel = o.Nama; cartRender(); });
 }
@@ -376,9 +381,9 @@ async function saleSave() {
   if (t.bayar < t.total && (!p.pel || p.pel === 'Umum')) return toast('Piutang wajib memilih pelanggan (bukan Umum)', true);
   $('#bSave').disabled = true;
   try {
-    const r = await api('saveSale', { items: S.cart.map(c => ({ id: c.id, nama: c.nama, qty: c.qty, harga: c.harga, diskon: c.diskon })), diskon: unf(p.diskon), bayar: t.bayar, pelanggan: p.pel || 'Umum', metode: p.metode || 'Tunai', catatan: p.cat || '' });
+    const r = await api('saveSale', { items: S.cart.map(c => ({ id: c.id, nama: c.nama, qty: c.qty, harga: c.harga, diskon: c.diskon })), diskon: unf(p.diskon), bayar: t.bayar, no: p.noManual ? String(p.no || '').trim() : '', pelanggan: p.pel || 'Umum', metode: p.metode || 'Tunai', catatan: p.cat || '' });
     toast('Transaksi ' + r.sale.No + ' tersimpan');
-    S.cart = []; S.pos = {}; S.barang = await api('list', { sheet: 'Barang' }); prodList(); cartRender();
+    S.cart = []; S.pos = {}; S.barang = await api('list', { sheet: 'Barang' }); S.nextNo = await api('nextNo'); prodList(); cartRender();
   } catch (x) { fail(x); $('#bSave').disabled = false; }
 }
 const RC_CSS = '.rc{font:12px/1.4 monospace;width:290px;margin:0 auto;padding:12px;background:#fff;color:#000}.rc hr{border:0;border-top:1px dashed #000;margin:6px 0}.rc h3,.rc p{margin:2px 0;text-align:center}.rc .l{display:flex;justify-content:space-between;gap:8px}body{margin:0}';
