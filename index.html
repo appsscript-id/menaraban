@@ -151,7 +151,7 @@ tfoot td{font-weight:700;background:#f6f8fa}
 <script>
 /* ============ KONFIGURASI ============ */
 // Ganti dengan URL Web App Apps Script Anda (akhiran /exec)
-const API_URL = 'https://script.google.com/macros/s/AKfycbyie9Csrbxr62yiIbBxqz_HbVxgnZdlZNJB9o7_ZVopFNC9CwHIFJvOQBuYKyL74I3AHw/exec';
+const API_URL = 'GANTI_DENGAN_URL_WEB_APP_APPS_SCRIPT';
 
 /* ============ UTIL ============ */
 const $ = s => document.querySelector(s);
@@ -274,7 +274,7 @@ const MENU = [
   ['pelanggan', 'Pelanggan', 'users'], ['supplier', 'Supplier', 'users', 1], ['pengeluaran', 'Pengeluaran', 'wallet', 1],
   ['laporan', 'Laporan', 'chart', 1], ['pengaturan', 'Pengaturan', 'gear', 1]
 ];
-const PAGES = { dashboard: pDashboard, kasir: pKasir, penjualan: pPenjualan, pembelian: pPembelian, barang: pBarang, mutasi: pMutasi, pelanggan: pPelanggan, supplier: pSupplier, pengeluaran: pPengeluaran, laporan: pLaporan, pengaturan: pPengaturan };
+const PAGES = () => ({ dashboard: pDashboard, kasir: pKasir, penjualan: pPenjualan, pembelian: pPembelian, barang: pBarang, mutasi: pMutasi, pelanggan: pPelanggan, supplier: pSupplier, pengeluaran: pPengeluaran, laporan: pLaporan, pengaturan: pPengaturan });
 function buildNav() {
   $('#nav').innerHTML = MENU.filter(m => !m[3] || isAdmin()).map(m => `<a data-p="${m[0]}" onclick="location.hash='${m[0]}'"><svg viewBox="0 0 24 24">${IC[m[2]]}</svg>${m[1]}</a>`).join('');
 }
@@ -287,7 +287,7 @@ async function route() {
   document.querySelectorAll('nav a').forEach(a => a.classList.toggle('on', a.dataset.p === p));
   $('#title').textContent = mm[1]; $('#topAct').innerHTML = ''; $('#side').classList.remove('on');
   const v = $('#view'); v.innerHTML = '<div class="empty">Memuat...</div>';
-  try { await PAGES[p](v); } catch (x) { v.innerHTML = `<div class="card empty">${e(x.message)}</div>`; }
+  try { await PAGES()[p](v); } catch (x) { v.innerHTML = `<div class="card empty">${e(x.message)}</div>`; }
 }
 window.onhashchange = route;
 
