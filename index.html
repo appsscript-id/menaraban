@@ -109,6 +109,7 @@ tfoot td{font-weight:700;background:#f6f8fa}
 .tot{font:700 30px 'Barlow Semi Condensed';color:var(--pri)}
 .note{font-size:12px;color:var(--mut)}
 .pw{display:flex;gap:6px}.pw .btn{padding:4px 8px;font-size:12px}
+.rc{font:12px/1.4 monospace;width:290px;margin:0 auto;padding:12px;background:#fff;color:#000}.rc hr{border:0;border-top:1px dashed #000;margin:6px 0}.rc h3,.rc p{margin:2px 0;text-align:center}.rc .l{display:flex;justify-content:space-between;gap:8px}
 @media(max-width:900px){
  aside{transform:translateX(-100%)}aside.on{transform:none}
  main{margin-left:0;padding:14px 12px 60px}#burger{display:inline-block}
@@ -162,6 +163,16 @@ const today = () => new Date().toLocaleDateString('sv-SE');
 const mStart = () => today().slice(0, 8) + '01';
 const H = h => ({ h });
 const tglID = t => t ? t.split('-').reverse().join('/') : '';
+const unf = s => Number(String(s ?? '').replace(/\D/g, '')) || 0;
+function fmtInput(el) {
+  const pos = el.selectionStart, before = el.value.slice(0, pos).replace(/\D/g, '').length, d = el.value.replace(/\D/g, '');
+  el.value = d ? Number(d).toLocaleString('id-ID') : '';
+  let c = 0, i = 0; for (; i < el.value.length && c < before; i++) if (/\d/.test(el.value[i])) c++;
+  try { el.setSelectionRange(i, i); } catch (x) {}
+}
+document.addEventListener('input', ev => { if (ev.target.classList && ev.target.classList.contains('num')) fmtInput(ev.target); }, true);
+const _ls = {};
+const loadScript = u => _ls[u] || (_ls[u] = new Promise((ok, no) => { const t = document.createElement('script'); t.src = u; t.onload = ok; t.onerror = () => no(new Error('Gagal memuat pustaka, cek koneksi internet')); document.head.appendChild(t); }));
 let S = { token: localStorage.getItem('mb_token') || '', user: null, cfg: {}, barang: [], pelanggan: [], supplier: [], cart: [], pos: {} };
 let busyN = 0;
 
@@ -203,14 +214,15 @@ function field(f, v) {
     return `<select name="${f.k}">${o.map(x => `<option value="${e(x[0])}" ${String(x[0]) === String(v) ? 'selected' : ''}>${e(x[1])}</option>`).join('')}</select>`;
   }
   if (f.t === 'textarea') return `<textarea name="${f.k}" rows="2">${e(v)}</textarea>`;
-  return `<input name="${f.k}" type="${f.t || 'text'}" value="${e(v)}" ${f.t === 'number' ? 'min="0" step="any"' : ''} ${f.ph ? `placeholder="${e(f.ph)}"` : ''}>`;
+  if (f.t === 'number') return `<input name="${f.k}" class="num" inputmode="numeric" value="${v === '' ? '' : nf(v)}" ${f.ph ? `placeholder="${e(f.ph)}"` : ''}>`;
+  return `<input name="${f.k}" type="${f.t || 'text'}" value="${e(v)}" ${f.ph ? `placeholder="${e(f.ph)}"` : ''}>`;
 }
 function formModal(title, fields, row, onSave) {
   const vis = fields.filter(f => !(f.newOnly && row.ID));
   modal(title, `<div class="fg">${vis.map(f => `<label class="f ${f.full ? 'full' : ''}"><span>${f.l}${f.req ? ' *' : ''}</span>${field(f, row[f.k])}</label>`).join('')}</div>`, async m => {
     const o = { ...row };
     for (const f of vis) {
-      const el = m.querySelector(`[name="${f.k}"]`); o[f.k] = el.value;
+      const el = m.querySelector(`[name="${f.k}"]`); o[f.k] = el.classList.contains('num') ? unf(el.value) : el.value;
       if (f.req && !String(el.value).trim()) throw new Error(f.l + ' wajib diisi');
     }
     return onSave(o);
@@ -249,7 +261,7 @@ async function boot() {
     const r = await api('init');
     Object.assign(S, { user: r.user, cfg: r.settings, barang: r.barang, pelanggan: r.pelanggan, supplier: r.supplier });
     $('#login').style.display = 'none'; $('#app').style.display = 'block';
-    $('#sName').textContent = S.cfg.nama_toko || 'Menara Ban'; document.title = (S.cfg.nama_toko || 'Menara Ban') + ' - Aplikasi Toko';
+    $('#sName').textContent = S.cfg.nama_toko || 'Menara Ban'; document.title = (S.cfg.nama_toko || 'Menara Ban');
     $('#meName').textContent = S.user.nama; $('#meRole').textContent = S.user.role === 'admin' ? 'Administrator' : 'Kasir';
     buildNav(); route();
   } catch (x) { if (S.token) fail(x); }
@@ -325,14 +337,14 @@ function addCart(id) {
   cartRender();
 }
 function cartSet(i, k, val) {
-  const c = S.cart[i]; val = +val || 0;
+  const c = S.cart[i]; val = unf(val);
   if (k === 'qty' && !c.jasa && val > c.stok) { toast('Stok hanya ' + c.stok, true); val = c.stok; }
   c[k] = val; if (k === 'qty' && val <= 0) S.cart.splice(i, 1); cartRender();
 }
 function cartTotals() {
   const sub = S.cart.reduce((p, c) => p + Math.max(0, c.qty * c.harga - c.diskon), 0);
-  const total = Math.max(0, sub - (+S.pos.diskon || 0));
-  const bayar = S.pos.bayar === '' || S.pos.bayar === undefined ? total : +S.pos.bayar;
+  const total = Math.max(0, sub - unf(S.pos.diskon));
+  const bayar = S.pos.bayar === '' || S.pos.bayar === undefined ? total : unf(S.pos.bayar);
   return { sub, total, bayar };
 }
 function cartCalc() {
@@ -342,16 +354,16 @@ function cartCalc() {
 }
 function cartRender() {
   const p = S.pos, el = $('#cart'); if (!el) return;
-  el.innerHTML = `<h3>Keranjang</h3>${S.cart.length ? S.cart.map((c, i) => `<div class="ci"><div><b>${e(c.nama)}</b><small>${e(c.uk)}</small></div><input type="number" min="0" value="${c.qty}" onchange="cartSet(${i},'qty',this.value)" title="Qty"><input type="number" min="0" value="${c.harga}" onchange="cartSet(${i},'harga',this.value)" title="Harga satuan"><input class="dk" type="number" min="0" value="${c.diskon}" onchange="cartSet(${i},'diskon',this.value)" title="Diskon (Rp)" placeholder="Disk."><button class="x" onclick="S.cart.splice(${i},1);cartRender()" title="Hapus">×</button></div>`).join('') + '<p class="note" style="margin-top:6px">Kolom: Qty · Harga satuan · Diskon item (Rp)</p>' : '<p class="empty">Klik barang di sebelah kiri untuk menambah.</p>'}
+  el.innerHTML = `<h3>Keranjang</h3>${S.cart.length ? S.cart.map((c, i) => `<div class="ci"><div><b>${e(c.nama)}</b><small>${e(c.uk)}</small></div><input class="num" inputmode="numeric" value="${nf(c.qty)}" onchange="cartSet(${i},'qty',this.value)" title="Qty"><input class="num" inputmode="numeric" value="${nf(c.harga)}" onchange="cartSet(${i},'harga',this.value)" title="Harga satuan"><input class="dk num" inputmode="numeric" value="${nf(c.diskon)}" onchange="cartSet(${i},'diskon',this.value)" title="Diskon (Rp)" placeholder="Disk."><button class="x" onclick="S.cart.splice(${i},1);cartRender()" title="Hapus">×</button></div>`).join('') + '<p class="note" style="margin-top:6px">Kolom: Qty · Harga satuan · Diskon item (Rp)</p>' : '<p class="empty">Klik barang di sebelah kiri untuk menambah.</p>'}
   <div class="sum"><div class="row"><span>Subtotal</span><b id="tSub"></b></div>
-  <div class="row"><span>Diskon nota (Rp)</span><input type="number" min="0" id="pD" value="${p.diskon || ''}" placeholder="0"></div>
+  <div class="row"><span>Diskon nota (Rp)</span><input class="num" inputmode="numeric" id="pD" value="${p.diskon || ''}" placeholder="0"></div>
   <div class="row"><span>Total</span><span class="tot" id="tTot"></span></div>
   <div class="row"><span>Pelanggan</span><span class="pw"><select id="pP" style="width:150px"><option>Umum</option>${S.pelanggan.map(x => `<option ${p.pel === x.Nama ? 'selected' : ''}>${e(x.Nama)}</option>`).join('')}</select><button class="btn" onclick="newCust()">+</button></span></div>
   <div class="row"><span>Metode</span><select id="pM">${['Tunai', 'Transfer', 'QRIS', 'Debit'].map(m => `<option ${p.metode === m ? 'selected' : ''}>${m}</option>`).join('')}</select></div>
-  <div class="row"><span>Dibayar (Rp)</span><span class="pw"><input type="number" min="0" id="pB" value="${p.bayar ?? ''}" placeholder="kosong = lunas pas"></span></div>
+  <div class="row"><span>Dibayar (Rp)</span><span class="pw"><input class="num" inputmode="numeric" id="pB" value="${p.bayar ?? ''}" placeholder="kosong = lunas pas"></span></div>
   <div class="row"><span class="note">Kurang dari total = piutang</span><span id="tKem"></span></div>
   <input id="pC" placeholder="Catatan (plat nomor, dll)" value="${e(p.cat || '')}">
-  <button class="btn a" style="padding:12px;font-size:16px" id="bSave" ${S.cart.length ? '' : 'disabled'} onclick="saleSave()">Simpan & Cetak Struk</button>
+  <button class="btn a" style="padding:12px;font-size:16px" id="bSave" ${S.cart.length ? '' : 'disabled'} onclick="saleSave()">Simpan</button>
   ${S.cart.length ? '<button class="btn d" onclick="S.cart=[];S.pos={};cartRender()">Kosongkan</button>' : ''}</div>`;
   const sync = () => { p.diskon = $('#pD').value; p.bayar = $('#pB').value; p.pel = $('#pP').value; p.metode = $('#pM').value; p.cat = $('#pC').value; cartCalc(); };
   ['#pD', '#pB', '#pP', '#pM', '#pC'].forEach(s => $(s).oninput = $(s).onchange = sync); cartCalc();
@@ -364,20 +376,37 @@ async function saleSave() {
   if (t.bayar < t.total && (!p.pel || p.pel === 'Umum')) return toast('Piutang wajib memilih pelanggan (bukan Umum)', true);
   $('#bSave').disabled = true;
   try {
-    const r = await api('saveSale', { items: S.cart.map(c => ({ id: c.id, nama: c.nama, qty: c.qty, harga: c.harga, diskon: c.diskon })), diskon: +p.diskon || 0, bayar: t.bayar, pelanggan: p.pel || 'Umum', metode: p.metode || 'Tunai', catatan: p.cat || '' });
-    toast('Transaksi ' + r.sale.No + ' tersimpan'); printReceipt(r.sale, r.items);
+    const r = await api('saveSale', { items: S.cart.map(c => ({ id: c.id, nama: c.nama, qty: c.qty, harga: c.harga, diskon: c.diskon })), diskon: unf(p.diskon), bayar: t.bayar, pelanggan: p.pel || 'Umum', metode: p.metode || 'Tunai', catatan: p.cat || '' });
+    toast('Transaksi ' + r.sale.No + ' tersimpan');
     S.cart = []; S.pos = {}; S.barang = await api('list', { sheet: 'Barang' }); prodList(); cartRender();
   } catch (x) { fail(x); $('#bSave').disabled = false; }
 }
+const RC_CSS = '.rc{font:12px/1.4 monospace;width:290px;margin:0 auto;padding:12px;background:#fff;color:#000}.rc hr{border:0;border-top:1px dashed #000;margin:6px 0}.rc h3,.rc p{margin:2px 0;text-align:center}.rc .l{display:flex;justify-content:space-between;gap:8px}body{margin:0}';
+function receiptBody(s, items) {
+  const c = S.cfg, L = (a, b) => `<div class="l"><span>${a}</span><span>${b}</span></div>`;
+  return `<h3>${e(c.nama_toko)}</h3><p>${e(c.alamat)}</p><p>${e(c.telp)}</p><hr>${L('No', e(s.No))}${L('Tgl', tglID(s.Tanggal) + ' ' + s.Waktu)}${L('Kasir', e(s.Kasir))}${L('Pelanggan', e(s.Pelanggan))}<hr>
+  ${items.map(i => `<div>${e(i.Nama)}</div>${L(nf(i.Qty) + ' x ' + nf(i.Harga) + (i.Diskon ? ' (-' + nf(i.Diskon) + ')' : ''), nf(i.Subtotal))}`).join('')}<hr>
+  ${L('Subtotal', nf(s.Subtotal))}${s.Diskon ? L('Diskon', '-' + nf(s.Diskon)) : ''}${L('<b>TOTAL</b>', '<b>' + nf(s.Total) + '</b>')}${L('Bayar (' + e(s.Metode) + ')', nf(s.Bayar + s.Kembali))}${s.Kembali ? L('Kembali', nf(s.Kembali)) : ''}${s.Total > s.Bayar ? L('SISA PIUTANG', nf(s.Total - s.Bayar)) : ''}<hr><p>${e(S.cfg.footer_struk)}</p>`;
+}
 function printReceipt(s, items) {
-  const c = S.cfg, L = (a, b) => `<div style="display:flex;justify-content:space-between"><span>${a}</span><span>${b}</span></div>`;
-  const html = `<html><head><title>${s.No}</title><style>body{font:12px monospace;width:280px;margin:0 auto;padding:8px}hr{border:0;border-top:1px dashed #000}h3,p{margin:2px 0;text-align:center}</style></head><body>
-  <h3>${e(c.nama_toko)}</h3><p>${e(c.alamat)}</p><p>${e(c.telp)}</p><hr>${L('No', e(s.No))}${L('Tgl', tglID(s.Tanggal) + ' ' + s.Waktu)}${L('Kasir', e(s.Kasir))}${L('Pelanggan', e(s.Pelanggan))}<hr>
-  ${items.map(i => `<div>${e(i.Nama)}</div>${L(i.Qty + ' x ' + nf(i.Harga) + (i.Diskon ? ' (-' + nf(i.Diskon) + ')' : ''), nf(i.Subtotal))}`).join('')}<hr>
-  ${L('Subtotal', nf(s.Subtotal))}${s.Diskon ? L('Diskon', '-' + nf(s.Diskon)) : ''}${L('<b>TOTAL</b>', '<b>' + nf(s.Total) + '</b>')}${L('Bayar (' + e(s.Metode) + ')', nf(s.Bayar + s.Kembali))}${s.Kembali ? L('Kembali', nf(s.Kembali)) : ''}${s.Total > s.Bayar ? L('SISA PIUTANG', nf(s.Total - s.Bayar)) : ''}<hr><p>${e(c.footer_struk)}</p></body></html>`;
+  const html = `<html><head><title>${e(s.No)}</title><style>${RC_CSS}</style></head><body><div class="rc">${receiptBody(s, items)}</div></body></html>`;
   const f = document.createElement('iframe'); f.style.cssText = 'position:fixed;width:0;height:0;border:0;right:0;bottom:0'; document.body.appendChild(f);
   f.contentDocument.open(); f.contentDocument.write(html); f.contentDocument.close();
   setTimeout(() => { f.contentWindow.focus(); f.contentWindow.print(); setTimeout(() => f.remove(), 2000); }, 300);
+}
+function strukModal(s, items) {
+  const fn = 'Struk-' + s.No.replace(/\//g, '-');
+  modal('Struk ' + s.No, `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><button class="btn p" id="sP">Cetak</button><button class="btn" id="sI">Simpan Gambar (PNG)</button><button class="btn" id="sD">Simpan PDF</button></div><div style="background:#eef1f4;padding:10px;border-radius:8px;overflow:auto"><div class="rc" id="rcp">${receiptBody(s, items)}</div></div>`);
+  const shot = async () => { await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'); return html2canvas($('#rcp'), { scale: 2, backgroundColor: '#ffffff' }); };
+  $('#sP').onclick = () => printReceipt(s, items);
+  $('#sI').onclick = async () => { try { const cv = await shot(), a = document.createElement('a'); a.href = cv.toDataURL('image/png'); a.download = fn + '.png'; a.click(); } catch (x) { fail(x); } };
+  $('#sD').onclick = async () => {
+    try {
+      const cv = await shot(); await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+      const w = 80, h = w * cv.height / cv.width, pdf = new window.jspdf.jsPDF({ unit: 'mm', format: [w, h] });
+      pdf.addImage(cv.toDataURL('image/png'), 'PNG', 0, 0, w, h); pdf.save(fn + '.pdf');
+    } catch (x) { fail(x); }
+  };
 }
 
 /* ============ RIWAYAT PENJUALAN ============ */
@@ -397,11 +426,11 @@ async function pPenjualan(v) {
   window.strukLama = async id => {
     const r = await api('list', { sheet: 'Penjualan', from: $('#pjF').value, to: $('#pjT').value }), s = r.find(x => x.ID === id);
     const d = (await api('list', { sheet: 'DetailPenjualan', from: s.Tanggal, to: s.Tanggal })).filter(x => x.NoNota === s.No);
-    printReceipt(s, d);
+    strukModal(s, d);
   };
 }
 function lunasi(type, id, sisa, cb) {
-  modal('Pelunasan', `<label class="f"><span>Jumlah pembayaran (sisa ${rp(sisa)})</span><input type="number" id="lj" value="${sisa}" min="1"></label>`, async () => { await api('pay', { type, id, jumlah: +$('#lj').value }); toast('Pembayaran dicatat'); cb(); }, 'Catat');
+  modal('Pelunasan', `<label class="f"><span>Jumlah pembayaran (sisa ${rp(sisa)})</span><input class="num" inputmode="numeric" id="lj" value="${nf(sisa)}"></label>`, async () => { await api('pay', { type, id, jumlah: unf($('#lj').value) }); toast('Pembayaran dicatat'); cb(); }, 'Catat');
 }
 function batal(type, id, cb) {
   modal('Batalkan Transaksi', `<p>Stok akan dikembalikan otomatis. Tindakan ini tidak bisa dibatalkan.</p><br><label class="f"><span>Alasan</span><input id="ba" placeholder="mis. salah input"></label>`, async () => { await api('void', { type, id, alasan: $('#ba').value }); toast('Transaksi dibatalkan'); cb(); }, 'Batalkan transaksi');
@@ -430,19 +459,19 @@ async function beliForm(done) {
   S.supplier = await api('list', { sheet: 'Supplier' });
   const items = S.barang.filter(b => b.Kategori !== 'Jasa' && b.Aktif !== 'N');
   if (!items.length) return toast('Tambahkan data barang terlebih dahulu', true);
-  const rowH = () => `<tr><td><select class="bi">${items.map(b => `<option value="${b.ID}" data-h="${b.HargaBeli}">${e(b.Nama + ' ' + b.Ukuran + ' (' + b.Stok + ')')}</option>`).join('')}</select></td><td><input type="number" class="bq" min="1" value="1" style="width:70px"></td><td><input type="number" class="bh" min="0" value="${items[0].HargaBeli}" style="width:110px"></td><td class="r bs">0</td><td><button class="btn s d" onclick="this.closest('tr').remove();beliCalc()">×</button></td></tr>`;
+  const rowH = () => `<tr><td><select class="bi">${items.map(b => `<option value="${b.ID}" data-h="${b.HargaBeli}">${e(b.Nama + ' ' + b.Ukuran + ' (' + b.Stok + ')')}</option>`).join('')}</select></td><td><input class="bq num" inputmode="numeric" value="1" style="width:70px"></td><td><input class="bh num" inputmode="numeric" value="${nf(items[0].HargaBeli)}" style="width:110px"></td><td class="r bs">0</td><td><button class="btn s d" onclick="this.closest('tr').remove();beliCalc()">×</button></td></tr>`;
   const m = modal('Pembelian Baru', `<div class="fg"><label class="f"><span>Tanggal</span><input type="date" id="bT" value="${today()}"></label><label class="f"><span>Supplier</span><input id="bS" list="supl" placeholder="Pilih / ketik nama"><datalist id="supl">${S.supplier.map(s => `<option value="${e(s.Nama)}">`).join('')}</datalist></label></div><br>
   <div class="tw"><table><thead><tr><th>Barang</th><th>Qty</th><th>Harga beli</th><th class="r">Subtotal</th><th></th></tr></thead><tbody id="bRows">${rowH()}</tbody></table></div>
   <button class="btn s" style="margin-top:8px" id="bAdd">+ Tambah baris</button>
-  <div class="fg" style="margin-top:14px"><label class="f"><span>Dibayar (Rp) - kosong = lunas</span><input type="number" id="bB" min="0"></label><div class="f"><span>Total</span><b class="tot" id="bTot">Rp 0</b></div></div>`, async () => {
-    const its = [...document.querySelectorAll('#bRows tr')].map(r => ({ id: r.querySelector('.bi').value, qty: +r.querySelector('.bq').value, harga: +r.querySelector('.bh').value }));
+  <div class="fg" style="margin-top:14px"><label class="f"><span>Dibayar (Rp) - kosong = lunas</span><input class="num" inputmode="numeric" id="bB"></label><div class="f"><span>Total</span><b class="tot" id="bTot">Rp 0</b></div></div>`, async () => {
+    const its = [...document.querySelectorAll('#bRows tr')].map(r => ({ id: r.querySelector('.bi').value, qty: unf(r.querySelector('.bq').value), harga: unf(r.querySelector('.bh').value) }));
     const tot = its.reduce((p, c) => p + c.qty * c.harga, 0), b = $('#bB').value;
-    await api('savePurchase', { tanggal: $('#bT').value, supplier: $('#bS').value, items: its, bayar: b === '' ? tot : +b });
+    await api('savePurchase', { tanggal: $('#bT').value, supplier: $('#bS').value, items: its, bayar: b === '' ? tot : unf(b) });
     toast('Pembelian tersimpan, stok bertambah'); done();
   }, 'Simpan Pembelian', true);
-  window.beliCalc = () => { let t = 0; document.querySelectorAll('#bRows tr').forEach(r => { const s = (+r.querySelector('.bq').value || 0) * (+r.querySelector('.bh').value || 0); r.querySelector('.bs').textContent = nf(s); t += s; }); $('#bTot').textContent = rp(t); };
+  window.beliCalc = () => { let t = 0; document.querySelectorAll('#bRows tr').forEach(r => { const s = unf(r.querySelector('.bq').value) * unf(r.querySelector('.bh').value); r.querySelector('.bs').textContent = nf(s); t += s; }); $('#bTot').textContent = rp(t); };
   const bind = () => document.querySelectorAll('#bRows tr').forEach(r => {
-    r.querySelector('.bi').onchange = ev => { r.querySelector('.bh').value = ev.target.selectedOptions[0].dataset.h; beliCalc(); };
+    r.querySelector('.bi').onchange = ev => { r.querySelector('.bh').value = nf(ev.target.selectedOptions[0].dataset.h); beliCalc(); };
     r.querySelector('.bq').oninput = r.querySelector('.bh').oninput = beliCalc;
   });
   $('#bAdd').onclick = () => { $('#bRows').insertAdjacentHTML('beforeend', rowH()); bind(); beliCalc(); };
@@ -489,7 +518,7 @@ const pBarang = v => crud(v, {
 });
 function opname(id) {
   const b = S.barang.find(x => x.ID === id);
-  modal('Penyesuaian Stok: ' + b.Nama, `<div class="fg"><label class="f"><span>Stok sistem</span><input value="${b.Stok}" disabled></label><label class="f"><span>Stok fisik (hasil hitung)</span><input type="number" id="op" value="${b.Stok}"></label><label class="f full"><span>Keterangan</span><input id="ok" value="Stok opname"></label></div>`, async () => { await api('adjust', { id, stokBaru: +$('#op').value, ket: $('#ok').value }); toast('Stok disesuaikan'); window.reload_Barang(); });
+  modal('Penyesuaian Stok: ' + b.Nama, `<div class="fg"><label class="f"><span>Stok sistem</span><input value="${b.Stok}" disabled></label><label class="f"><span>Stok fisik (hasil hitung)</span><input class="num" inputmode="numeric" id="op" value="${nf(b.Stok)}"></label><label class="f full"><span>Keterangan</span><input id="ok" value="Stok opname"></label></div>`, async () => { await api('adjust', { id, stokBaru: unf($('#op').value), ket: $('#ok').value }); toast('Stok disesuaikan'); window.reload_Barang(); });
 }
 
 /* ============ MUTASI STOK ============ */
@@ -541,7 +570,7 @@ async function pLaporan(v) {
 
 /* ============ PENGATURAN ============ */
 async function pPengaturan(v) {
-  const c = S.cfg, F = [['nama_toko', 'Nama toko'], ['telp', 'Telepon / WA'], ['alamat', 'Alamat', 1], ['footer_struk', 'Catatan kaki struk', 1], ['prefix_jual', 'Awalan nomor nota jual'], ['prefix_beli', 'Awalan nomor nota beli'], ['kategori', 'Kategori barang (pisahkan koma; "Jasa" = tanpa stok)', 1]];
+  const c = S.cfg, F = [['nama_toko', 'Nama toko'], ['telp', 'Telepon / WA'], ['alamat', 'Alamat', 1], ['footer_struk', 'Catatan kaki struk', 1], ['prefix_beli', 'Awalan nomor nota beli'], ['kategori', 'Kategori barang (pisahkan koma; "Jasa" = tanpa stok)', 1]];
   v.innerHTML = `<div class="grid2"><div class="card"><h3>Profil Toko & Nota</h3><div class="fg">${F.map(f => `<label class="f ${f[2] ? 'full' : ''}"><span>${f[1]}</span><input id="cf_${f[0]}" value="${e(c[f[0]])}"></label>`).join('')}</div><br><button class="btn p" id="cfSave">Simpan Pengaturan</button></div>
   <div><div class="card"><h3>Ganti Password</h3><div class="fg"><label class="f full"><span>Password lama</span><input type="password" id="pl"></label><label class="f full"><span>Password baru (min. 5 karakter)</span><input type="password" id="pn"></label></div><br><button class="btn p" id="pwSave">Ubah Password</button></div>
   <div class="card"><h3>Tips</h3><p class="note">Data tersimpan di Google Spreadsheet milik Anda. Backup rutin: File → Buat salinan. Jasa pasang/balancing: buat barang berkategori "Jasa" agar tidak mengurangi stok.</p></div></div></div>
