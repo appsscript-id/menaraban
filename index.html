@@ -18,7 +18,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 #busy{position:fixed;top:0;left:0;height:3px;width:0;background:var(--amb);z-index:99;transition:width .4s}
 #busy.on{width:80%}
 /* login */
-#login{min-height:100vh;display:grid;place-items:center;padding:20px;background:linear-gradient(135deg,#1f2933 0 55%,#e9edf1 55%)}
+#login{min-height:100vh;display:none;place-items:center;padding:20px;background:linear-gradient(135deg,#1f2933 0 55%,#e9edf1 55%)}
 .lbox{background:#fff;width:100%;max-width:380px;border-radius:14px;padding:32px 28px;box-shadow:0 20px 50px rgba(15,25,35,.25)}
 .logo{display:flex;align-items:center;gap:12px}
 .tire{width:42px;height:42px;border-radius:50%;border:9px solid var(--ink);box-shadow:inset 0 0 0 3px var(--amb);background:#fff;flex:none}
@@ -110,8 +110,31 @@ tfoot td{font-weight:700;background:#f6f8fa}
 .note{font-size:12px;color:var(--mut)}
 .pw{display:flex;gap:6px}.pw .btn{padding:4px 8px;font-size:12px}
 .rc{font:12px/1.4 monospace;width:290px;margin:0 auto;padding:12px;background:#fff;color:#000}.rc hr{border:0;border-top:1px dashed #000;margin:6px 0}.rc h3,.rc p{margin:2px 0;text-align:center}.rc .l{display:flex;justify-content:space-between;gap:8px}
+html,body{overscroll-behavior-y:contain}
+#splash{min-height:100vh;display:grid;place-items:center;background:var(--bg)}
+.spin{animation:sp 1s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
+#scrim{display:none;position:fixed;inset:0;background:rgba(15,25,35,.5);z-index:25}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px}
+.tile{border:2px solid var(--line);border-radius:10px;padding:10px;cursor:pointer;background:#fff;text-align:left}
+.tile:hover{border-color:#9db4c6}.tile.on{border-color:var(--pri);box-shadow:0 0 0 3px rgba(15,92,140,.15)}
+.tile svg{width:100%;height:auto;display:block;margin-bottom:8px;border-radius:6px}.tile b{display:block}.tile small{color:var(--mut)}
+.pos.v2>:first-child{order:2}
+.pos.v3 .plist{grid-template-columns:1fr;gap:4px;max-height:70vh}
+.pos.v3 .pi{display:grid;grid-template-columns:2fr 1.2fr 1fr 1fr;gap:8px;align-items:center;padding:7px 10px}
+.pos.v3 .pi .pr{margin:0;text-align:right}
+.pos.v4 .plist{grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}
+.pos.v4 .pi{padding:18px}.pos.v4 .pi b{font-size:16px}.pos.v4 .pi .pr{font-size:24px}
+.pos.v4 .btn,.pos.v4 input,.pos.v4 select{padding:11px 12px}
+.pos.v5{grid-template-columns:1fr}.pos.v5 .plist{max-height:34vh;grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+.pos.v5 #cart .sum{grid-template-columns:1fr 1fr;column-gap:28px}.pos.v5 #cart .sum>.btn,.pos.v5 #cart .sum>input,.pos.v5 #cart .sum>.note{grid-column:1/-1}
+.pos.v6 .card{background:#1b2430;color:#e6ebf0;border-color:#2c3a4a}.pos.v6 h3{color:#fff}
+.pos.v6 .pi{background:#243040;border-color:#34455a;color:#e6ebf0}.pos.v6 .pi:hover{border-color:var(--amb)}.pos.v6 .pi .pr,.pos.v6 .tot{color:var(--amb)}
+.pos.v6 input,.pos.v6 select{background:#16202b;color:#e6ebf0;border-color:#34455a}
+.pos.v6 .btn{background:#243040;border-color:#34455a;color:#e6ebf0}.pos.v6 .btn.a{background:var(--amb);border-color:var(--amb);color:#1f2933}
+.pos.v6 .note,.pos.v6 .pi small,.pos.v6 .ci small,.pos.v6 .sum span{color:#9fb0c2}.pos.v6 .ci{border-color:#2c3a4a}.pos.v6 .empty{color:#9fb0c2}
+@media(max-width:900px){.pos.v5 #cart .sum{grid-template-columns:1fr}.pos.v3 .pi{grid-template-columns:1.6fr 1fr 1fr}.pos.v3 .pi>small:last-child{display:none}}
 @media(max-width:900px){
- aside{transform:translateX(-100%)}aside.on{transform:none}
+ aside{transform:translateX(-100%)}aside.on{transform:none}#scrim.on{display:block}.pos.v2>:first-child{order:0}
  main{margin-left:0;padding:14px 12px 60px}#burger{display:inline-block}
  .grid2,.pos{grid-template-columns:1fr}.fg{grid-template-columns:1fr}
  .ci{grid-template-columns:1fr 56px 84px 24px}.ci .dk{display:none}
@@ -122,6 +145,8 @@ tfoot td{font-weight:700;background:#f6f8fa}
 </head>
 <body>
 <div id="busy"></div>
+<div id="splash"><div class="tire spin"></div></div>
+<div id="scrim" onclick="toggleSide(false)"></div>
 
 <!-- LOGIN -->
 <section id="login">
@@ -142,7 +167,7 @@ tfoot td{font-weight:700;background:#f6f8fa}
     <div class="me"><b id="meName"></b><span id="meRole"></span><button class="btn s" onclick="logout()">Keluar</button></div>
   </aside>
   <main>
-    <div class="top"><button class="btn" id="burger" onclick="$('#side').classList.toggle('on')">Menu</button><h1 id="title"></h1><span id="topAct"></span></div>
+    <div class="top"><button class="btn" id="burger" onclick="toggleSide()">Menu</button><h1 id="title"></h1><span id="topAct"></span></div>
     <div id="view"></div>
   </main>
 </div>
@@ -252,19 +277,21 @@ $('#lform').onsubmit = async ev => {
 };
 function logout(silent) {
   localStorage.removeItem('mb_token'); S.token = ''; S.user = null;
-  $('#app').style.display = 'none'; $('#login').style.display = 'grid';
+  $('#app').style.display = 'none'; $('#splash').style.display = 'none'; $('#login').style.display = 'grid';
   if (silent) toast('Sesi berakhir, silakan login ulang', true);
 }
 async function boot() {
-  if (!S.token) return;
+  if (!S.token) { $('#splash').style.display = 'none'; $('#login').style.display = 'grid'; return; }
   try {
     const r = await api('init');
     Object.assign(S, { user: r.user, cfg: r.settings, barang: r.barang, pelanggan: r.pelanggan, supplier: r.supplier });
-    $('#login').style.display = 'none'; $('#app').style.display = 'block';
+    $('#login').style.display = 'none'; $('#splash').style.display = 'none'; $('#app').style.display = 'block';
     $('#sName').textContent = S.cfg.nama_toko || 'Menara Ban'; document.title = (S.cfg.nama_toko || 'Menara Ban') + ' - Aplikasi Toko';
     $('#meName').textContent = S.user.nama; $('#meRole').textContent = S.user.role === 'admin' ? 'Administrator' : 'Kasir';
     buildNav(); route();
-  } catch (x) { if (S.token) fail(x); }
+  } catch (x) {
+    if (S.token) { $('#login').style.display = 'none'; const sp = $('#splash'); sp.style.display = 'grid'; sp.innerHTML = `<div style="text-align:center;padding:20px"><p style="margin-bottom:12px">Gagal terhubung: ${e(x.message)}</p><button class="btn p" onclick="location.reload()">Coba lagi</button></div>`; }
+  }
 }
 
 /* ============ NAVIGASI ============ */
@@ -287,17 +314,23 @@ const MENU = [
   ['laporan', 'Laporan', 'chart', 1], ['pengaturan', 'Pengaturan', 'gear', 1]
 ];
 const PAGES = () => ({ dashboard: pDashboard, kasir: pKasir, penjualan: pPenjualan, pembelian: pPembelian, barang: pBarang, mutasi: pMutasi, pelanggan: pPelanggan, supplier: pSupplier, pengeluaran: pPengeluaran, laporan: pLaporan, pengaturan: pPengaturan });
+function toggleSide(on) {
+  const v = on === undefined ? !$('#side').classList.contains('on') : on;
+  $('#side').classList.toggle('on', v); $('#scrim').classList.toggle('on', v);
+}
+document.addEventListener('keydown', ev => { if (ev.key === 'Escape') toggleSide(false); });
 function buildNav() {
   $('#nav').innerHTML = MENU.filter(m => !m[3] || isAdmin()).map(m => `<a data-p="${m[0]}" onclick="location.hash='${m[0]}'"><svg viewBox="0 0 24 24">${IC[m[2]]}</svg>${m[1]}</a>`).join('');
 }
 async function route() {
   if (!S.user) return;
-  let p = location.hash.slice(1) || 'dashboard';
+  let p = location.hash.slice(1) || localStorage.getItem('mb_page') || 'dashboard';
   const m = MENU.find(x => x[0] === p);
   if (!m || (m[3] && !isAdmin())) { p = 'dashboard'; }
   const mm = MENU.find(x => x[0] === p);
+  localStorage.setItem('mb_page', p); if (location.hash.slice(1) !== p) history.replaceState(null, '', '#' + p);
   document.querySelectorAll('nav a').forEach(a => a.classList.toggle('on', a.dataset.p === p));
-  $('#title').textContent = mm[1]; $('#topAct').innerHTML = ''; $('#side').classList.remove('on');
+  $('#title').textContent = mm[1]; $('#topAct').innerHTML = ''; toggleSide(false);
   const v = $('#view'); v.innerHTML = '<div class="empty">Memuat...</div>';
   try { await PAGES()[p](v); } catch (x) { v.innerHTML = `<div class="card empty">${e(x.message)}</div>`; }
 }
@@ -323,7 +356,7 @@ async function pDashboard(v) {
 async function pKasir(v) {
   S.barang = await api('list', { sheet: 'Barang' });
   S.nextNo = await api('nextNo');
-  v.innerHTML = `<div class="pos"><div class="card"><div class="bar"><input class="grow" id="q" placeholder="Cari nama, merek, ukuran, kode barang..."><select id="kat"><option value="">Semua kategori</option>${cats().map(c => `<option>${e(c)}</option>`).join('')}</select></div><div class="plist" id="plist"></div></div><div class="card" id="cart"></div></div>`;
+  v.innerHTML = `<div class="pos v${[1, 2, 3, 4, 5, 6].includes(+S.cfg.tampilan_kasir) ? +S.cfg.tampilan_kasir : 1}"><div class="card"><div class="bar"><input class="grow" id="q" placeholder="Cari nama, merek, ukuran, kode barang..."><select id="kat"><option value="">Semua kategori</option>${cats().map(c => `<option>${e(c)}</option>`).join('')}</select></div><div class="plist" id="plist"></div></div><div class="card" id="cart"></div></div>`;
   $('#q').oninput = $('#kat').onchange = prodList; prodList(); cartRender(); $('#q').focus();
 }
 function prodList() {
@@ -574,11 +607,34 @@ async function pLaporan(v) {
 }
 
 /* ============ PENGATURAN ============ */
+const VIEWS = [['Klasik', 'Produk di kiri, keranjang di kanan'], ['Keranjang Kiri', 'Keranjang di kiri, produk di kanan'], ['Daftar Ringkas', 'Produk berbentuk daftar, muat banyak'], ['Layar Sentuh', 'Tombol besar untuk tablet / HP'], ['Atas - Bawah', 'Produk di atas, keranjang melebar di bawah'], ['Mode Gelap', 'Tampilan gelap, nyaman di toko redup']];
+function thumb(n) {
+  const R = (x, y, w, h, f = '#fff') => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="3" fill="${f}" stroke="rgba(120,130,140,.45)"/>`;
+  const G = (x, y, c, r, w, h, g, f) => { let o = ''; for (let i = 0; i < r; i++) for (let j = 0; j < c; j++) o += `<rect x="${x + j * (w + g)}" y="${y + i * (h + g)}" width="${w}" height="${h}" rx="2" fill="${f}"/>`; return o; };
+  const cart = (x, y, w, h, f, l, b) => R(x, y, w, h, f) + G(x + 4, y + 5, 1, 4, w - 8, 5, 5, l) + R(x + 4, y + h - 13, w - 8, 9, b);
+  let bg = '#eef1f4', o = '';
+  if (n == 1) o = R(3, 3, 70, 70) + G(7, 7, 3, 3, 19, 19, 3, '#cfe0ee') + cart(77, 3, 40, 70, '#fff', '#dfe5eb', '#f0a202');
+  if (n == 2) o = cart(3, 3, 40, 70, '#fff', '#dfe5eb', '#f0a202') + R(47, 3, 70, 70) + G(51, 7, 3, 3, 19, 19, 3, '#cfe0ee');
+  if (n == 3) o = R(3, 3, 70, 70) + G(7, 7, 1, 7, 62, 6, 3, '#cfe0ee') + cart(77, 3, 40, 70, '#fff', '#dfe5eb', '#f0a202');
+  if (n == 4) o = R(3, 3, 70, 70) + G(7, 7, 2, 2, 30, 30, 4, '#cfe0ee') + cart(77, 3, 40, 70, '#fff', '#dfe5eb', '#f0a202');
+  if (n == 5) o = R(3, 3, 114, 36) + G(7, 7, 6, 2, 15, 12, 4, '#cfe0ee') + R(3, 43, 114, 30) + G(7, 47, 1, 2, 70, 5, 4, '#dfe5eb') + R(88, 57, 25, 12, '#f0a202');
+  if (n == 6) { bg = '#1f2933'; o = R(3, 3, 70, 70, '#2b3846') + G(7, 7, 3, 3, 19, 19, 3, '#46617a') + cart(77, 3, 40, 70, '#2b3846', '#46617a', '#f0a202'); }
+  return `<svg viewBox="0 0 120 76"><rect width="120" height="76" fill="${bg}"/>${o}</svg>`;
+}
+async function setView(n) {
+  try {
+    S.cfg = await api('saveSettings', { tampilan_kasir: n });
+    document.querySelectorAll('.tile').forEach((t, i) => t.classList.toggle('on', i + 1 === n));
+    toast('Tampilan kasir: ' + VIEWS[n - 1][0]);
+  } catch (x) { fail(x); }
+}
+
 async function pPengaturan(v) {
   const c = S.cfg, F = [['nama_toko', 'Nama toko'], ['telp', 'Telepon / WA'], ['alamat', 'Alamat', 1], ['footer_struk', 'Catatan kaki struk', 1], ['prefix_beli', 'Awalan nomor nota beli'], ['kategori', 'Kategori barang (pisahkan koma; "Jasa" = tanpa stok)', 1]];
   v.innerHTML = `<div class="grid2"><div class="card"><h3>Profil Toko & Nota</h3><div class="fg">${F.map(f => `<label class="f ${f[2] ? 'full' : ''}"><span>${f[1]}</span><input id="cf_${f[0]}" value="${e(c[f[0]])}"></label>`).join('')}</div><br><button class="btn p" id="cfSave">Simpan Pengaturan</button></div>
   <div><div class="card"><h3>Ganti Password</h3><div class="fg"><label class="f full"><span>Password lama</span><input type="password" id="pl"></label><label class="f full"><span>Password baru (min. 5 karakter)</span><input type="password" id="pn"></label></div><br><button class="btn p" id="pwSave">Ubah Password</button></div>
   <div class="card"><h3>Tips</h3><p class="note">Data tersimpan di Google Spreadsheet milik Anda. Backup rutin: File → Buat salinan. Jasa pasang/balancing: buat barang berkategori "Jasa" agar tidak mengurangi stok.</p></div></div></div>
+  <div class="card"><h3>Tampilan Kasir / Penjualan</h3><p class="note" style="margin-bottom:12px">Pilih tampilan halaman Kasir. Berlaku untuk semua pengguna.</p><div class="tiles">${VIEWS.map((t, i) => `<button class="tile ${(+S.cfg.tampilan_kasir || 1) === i + 1 ? 'on' : ''}" onclick="setView(${i + 1})">${thumb(i + 1)}<b>${i + 1}. ${t[0]}</b><small>${t[1]}</small></button>`).join('')}</div></div>
   <div class="card"><h3>Pengguna Aplikasi</h3><div id="usr"></div></div>`;
   $('#cfSave').onclick = async () => { const o = {}; F.forEach(f => o[f[0]] = $('#cf_' + f[0]).value); S.cfg = await api('saveSettings', o); $('#sName').textContent = S.cfg.nama_toko; toast('Pengaturan tersimpan'); };
   $('#pwSave').onclick = async () => { try { await api('changePassword', { lama: $('#pl').value, baru: $('#pn').value }); toast('Password diubah'); $('#pl').value = $('#pn').value = ''; } catch (x) { fail(x); } };
