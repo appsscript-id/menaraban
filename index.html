@@ -256,7 +256,7 @@ function formModal(title, fields, row, onSave) {
 
 function tbl(heads, rows, foot) {
   const cell = c => (c && typeof c === 'object' && 'h' in c) ? `<td${c.c ? ` class="${c.c}"` : ''}>${c.h}</td>` : typeof c === 'number' ? `<td class="r">${nf(c)}</td>` : `<td>${e(c)}</td>`;
-  return `<div class="tw"><table><thead><tr>${heads.map(h => `<th class="${/^(Harga|Total|Qty|Stok|Jumlah|Sisa|Subtotal|Bayar|Nilai|Laba|Diskon|HPP|Kurang|Kembali|Potong|Uang|Modal|Seharusnya|Hitung|Selisih|Pelunasan)/.test(h) ? 'r' : ''}">${h}</th>`).join('')}</tr></thead><tbody>${rows.length ? rows.map(r => `<tr>${r.map(cell).join('')}</tr>`).join('') : `<tr><td class="empty" colspan="${heads.length}">Belum ada data</td></tr>`}</tbody>${foot ? `<tfoot><tr>${foot.map(cell).join('')}</tr></tfoot>` : ''}</table></div>`;
+  return `<div class="tw"><table><thead><tr>${heads.map(h => `<th class="${/^(Harga|Total|Qty|Stok|Jumlah|Sisa|Subtotal|Bayar|Nilai|Laba|Diskon|HPP|Kurang|Kembali|Potong|Uang|Modal|Seharusnya|Hitung|Selisih|Pelunasan|PPN|DPP)/.test(h) ? 'r' : ''}">${h}</th>`).join('')}</tr></thead><tbody>${rows.length ? rows.map(r => `<tr>${r.map(cell).join('')}</tr>`).join('') : `<tr><td class="empty" colspan="${heads.length}">Belum ada data</td></tr>`}</tbody>${foot ? `<tfoot><tr>${foot.map(cell).join('')}</tr></tfoot>` : ''}</table></div>`;
 }
 const badge = s => `<span class="bd ${{ Lunas: 'ok', Piutang: 'bad', Hutang: 'bad', Batal: 'warn' }[s] || ''}">${e(s)}</span>`;
 const sum = (a, k) => a.reduce((p, c) => p + (+c[k] || 0), 0);
@@ -311,11 +311,11 @@ const IC = {
 };
 const MENU = [
   ['dashboard', 'Dashboard', 'dash'], ['kasir', 'Kasir / Penjualan', 'cart'], ['penjualan', 'Riwayat Penjualan', 'list'], ['retur', 'Retur Penjualan', 'undo', 1], ['tutup', 'Tutup Kasir', 'lock'],
-  ['pembelian', 'Pembelian', 'truck', 1], ['barang', 'Barang & Stok', 'box'], ['mutasi', 'Mutasi Stok', 'swap', 1],
+  ['pembelian', 'Pembelian', 'truck', 1], ['returbeli', 'Retur Pembelian', 'undo', 1], ['barang', 'Barang & Stok', 'box'], ['mutasi', 'Mutasi Stok', 'swap', 1],
   ['pelanggan', 'Pelanggan', 'users'], ['supplier', 'Supplier', 'users', 1], ['pengeluaran', 'Pengeluaran', 'wallet', 1],
   ['laporan', 'Laporan', 'chart', 1], ['pengaturan', 'Pengaturan', 'gear', 1]
 ];
-const PAGES = () => ({ dashboard: pDashboard, kasir: pKasir, penjualan: pPenjualan, pembelian: pPembelian, barang: pBarang, mutasi: pMutasi, pelanggan: pPelanggan, supplier: pSupplier, pengeluaran: pPengeluaran, laporan: pLaporan, pengaturan: pPengaturan, retur: pRetur, tutup: pTutup });
+const PAGES = () => ({ dashboard: pDashboard, kasir: pKasir, penjualan: pPenjualan, pembelian: pPembelian, barang: pBarang, mutasi: pMutasi, pelanggan: pPelanggan, supplier: pSupplier, pengeluaran: pPengeluaran, laporan: pLaporan, pengaturan: pPengaturan, retur: pRetur, tutup: pTutup, returbeli: pReturBeli });
 function toggleSide(on) {
   const v = on === undefined ? !$('#side').classList.contains('on') : on;
   $('#side').classList.toggle('on', v); $('#scrim').classList.toggle('on', v);
@@ -483,9 +483,9 @@ async function pPembelian(v) {
   const load = async () => {
     const r = await api('list', { sheet: 'Pembelian', from: $('#pbF').value, to: $('#pbT').value }); r.reverse();
     const ok = r.filter(x => x.Batal !== 'Y');
-    $('#pbR').innerHTML = tbl(['No', 'Tanggal', 'Supplier', 'Total', 'Bayar', 'Status', 'User', ''], r.map(x => [x.No, tglID(x.Tanggal), x.Supplier, x.Total, x.Bayar, H(badge(x.Status)), x.User,
-      { h: `<button class="btn s" onclick="detailBeli('${x.No}','${x.Tanggal}')">Detail</button>${x.Status === 'Hutang' ? `<button class="btn s p" onclick="lunasi('beli','${x.ID}',${x.Total - x.Bayar},load_pb)">Bayar</button>` : ''}${x.Batal !== 'Y' ? `<button class="btn s d" onclick="batal('beli','${x.ID}',load_pb)">Batal</button>` : ''}`, c: 'act' }]),
-      ['Total ' + ok.length + ' nota', '', '', sum(ok, 'Total'), sum(ok, 'Bayar'), '', '', '']);
+    $('#pbR').innerHTML = tbl(['No', 'Tanggal', 'Supplier', 'Total', 'PPN', 'Bayar', 'Status', 'User', ''], r.map(x => [x.No, tglID(x.Tanggal), x.Supplier, x.Total, x.PPN, x.Bayar, H(badge(x.Status)), x.User,
+      { h: `<button class="btn s" onclick="detailBeli('${x.No}','${x.Tanggal}')">Detail</button>${x.Status === 'Hutang' ? `<button class="btn s p" onclick="lunasi('beli','${x.ID}',${x.Total - x.Bayar},load_pb)">Bayar</button>` : ''}${x.Batal !== 'Y' ? `<button class="btn s" onclick="returBeliForm('${x.ID}',load_pb)">Retur</button><button class="btn s d" onclick="batal('beli','${x.ID}',load_pb)">Batal</button>` : ''}`, c: 'act' }]),
+      ['Total ' + ok.length + ' nota', '', '', sum(ok, 'Total'), sum(ok, 'PPN'), sum(ok, 'Bayar'), '', '', '']);
   };
   window.load_pb = load; $('#pbGo').onclick = load; load();
   window.detailBeli = async (no, t) => {
@@ -503,19 +503,20 @@ async function beliForm(done) {
   const m = modal('Pembelian Baru', `<div class="fg"><label class="f"><span>Tanggal</span><input type="date" id="bT" value="${today()}"></label><label class="f"><span>Supplier</span><input id="bS" list="supl" placeholder="Pilih / ketik nama"><datalist id="supl">${S.supplier.map(s => `<option value="${e(s.Nama)}">`).join('')}</datalist></label></div><br>
   <div class="tw"><table><thead><tr><th>Barang</th><th>Qty</th><th>Harga beli</th><th class="r">Subtotal</th><th></th></tr></thead><tbody id="bRows">${rowH()}</tbody></table></div>
   <button class="btn s" style="margin-top:8px" id="bAdd">+ Tambah baris</button>
-  <div class="fg" style="margin-top:14px"><label class="f"><span>Dibayar (Rp) - kosong = lunas</span><input class="num" inputmode="numeric" id="bB"></label><div class="f"><span>Total</span><b class="tot" id="bTot">Rp 0</b></div></div>`, async () => {
+  <div class="fg" style="margin-top:14px"><label class="f"><span>PPN</span><select id="bP"><option value="none">Tanpa PPN</option><option value="exclude">Harga belum termasuk PPN (+${ppnRate()}%)</option><option value="include">Harga sudah termasuk PPN (${ppnRate()}%)</option></select></label><label class="f"><span>Dibayar (Rp) - kosong = lunas</span><input class="num" inputmode="numeric" id="bB"></label></div>
+  <div style="margin-top:12px;text-align:right"><div class="note">Subtotal: <b id="bSub">Rp 0</b> &nbsp;·&nbsp; PPN: <b id="bPpn">Rp 0</b></div><div>Total: <b class="tot" id="bTot">Rp 0</b></div></div>`, async () => {
     const its = [...document.querySelectorAll('#bRows tr')].map(r => ({ id: r.querySelector('.bi').value, qty: unf(r.querySelector('.bq').value), harga: unf(r.querySelector('.bh').value) }));
-    const tot = its.reduce((p, c) => p + c.qty * c.harga, 0), b = $('#bB').value;
-    await api('savePurchase', { tanggal: $('#bT').value, supplier: $('#bS').value, items: its, bayar: b === '' ? tot : unf(b) });
+    const tot = ppnCalc(its.reduce((p, c) => p + c.qty * c.harga, 0), $('#bP').value).total, b = $('#bB').value;
+    await api('savePurchase', { tanggal: $('#bT').value, supplier: $('#bS').value, items: its, ppn: $('#bP').value, bayar: b === '' ? tot : unf(b) });
     toast('Pembelian tersimpan, stok bertambah'); done();
   }, 'Simpan Pembelian', true);
-  window.beliCalc = () => { let t = 0; document.querySelectorAll('#bRows tr').forEach(r => { const s = unf(r.querySelector('.bq').value) * unf(r.querySelector('.bh').value); r.querySelector('.bs').textContent = nf(s); t += s; }); $('#bTot').textContent = rp(t); };
+  window.beliCalc = () => { let t = 0; document.querySelectorAll('#bRows tr').forEach(r => { const s = unf(r.querySelector('.bq').value) * unf(r.querySelector('.bh').value); r.querySelector('.bs').textContent = nf(s); t += s; }); const pc = ppnCalc(t, $('#bP').value); $('#bSub').textContent = rp(t); $('#bPpn').textContent = rp(pc.ppn); $('#bTot').textContent = rp(pc.total); };
   const bind = () => document.querySelectorAll('#bRows tr').forEach(r => {
     r.querySelector('.bi').onchange = ev => { r.querySelector('.bh').value = nf(ev.target.selectedOptions[0].dataset.h); beliCalc(); };
     r.querySelector('.bq').oninput = r.querySelector('.bh').oninput = beliCalc;
   });
   $('#bAdd').onclick = () => { $('#bRows').insertAdjacentHTML('beforeend', rowH()); bind(); beliCalc(); };
-  bind(); beliCalc();
+  $('#bP').onchange = beliCalc; bind(); beliCalc();
 }
 
 /* ============ CRUD UMUM ============ */
@@ -574,7 +575,7 @@ async function pMutasi(v) {
 /* ============ LAPORAN ============ */
 async function pLaporan(v) {
   v.innerHTML = rangeBar('lp', 0, '<button class="btn" onclick="window.print()">Cetak</button><button class="btn" id="lpCsv">Ekspor CSV</button>') + '<div class="tabs" id="lpTabs"></div><div class="card"><div class="ph"><h2>' + e(S.cfg.nama_toko) + '</h2></div><div id="lpR"></div></div>';
-  const TABS = ['Laba Rugi', 'Penjualan', 'Produk Terjual', 'Pembelian', 'Stok Barang', 'Piutang & Hutang', 'Pengeluaran', 'Retur'];
+  const TABS = ['Laba Rugi', 'Penjualan', 'Produk Terjual', 'Pembelian', 'Stok Barang', 'Piutang & Hutang', 'Pengeluaran', 'Retur', 'Retur Beli', 'PPN Masukan'];
   let D = null, tab = 0, cur = null;
   const draw = () => {
     $('#lpTabs').innerHTML = TABS.map((t, i) => `<button class="${i === tab ? 'on' : ''}" data-t="${i}">${t}</button>`).join('');
@@ -585,14 +586,14 @@ async function pLaporan(v) {
     let heads, rows, foot, html;
     if (tab === 0) {
       const omzet = sum(J, 'Subtotal'), disk = sum(J, 'Diskon'), hpp = DJ.reduce((p, c) => p + c.HPP * c.Qty, 0), RT = D.retur || [], rTot = sum(RT, 'Total'), hppBalik = rTot - sum(RT, 'Laba'), kotor = sum(J, 'Laba') - sum(RT, 'Laba'), biaya = sum(D.pengeluaran, 'Jumlah');
-      heads = ['Keterangan', 'Jumlah (Rp)']; rows = [['Penjualan kotor', omzet], ['Diskon nota', -disk], ['Penjualan bersih', omzet - disk], ['Retur penjualan', -rTot], ['Penjualan neto', omzet - disk - rTot], ['Harga pokok penjualan (HPP, setelah retur)', -(hpp - hppBalik)], ['Laba kotor', kotor], ['Biaya operasional', -biaya], ['LABA BERSIH', kotor - biaya], ['', ''], ['Info: total pembelian stok periode ini', sum(B, 'Total')], ['Info: jumlah transaksi penjualan', J.length]];
+      heads = ['Keterangan', 'Jumlah (Rp)']; rows = [['Penjualan kotor', omzet], ['Diskon nota', -disk], ['Penjualan bersih', omzet - disk], ['Retur penjualan', -rTot], ['Penjualan neto', omzet - disk - rTot], ['Harga pokok penjualan (HPP, setelah retur)', -(hpp - hppBalik)], ['Laba kotor', kotor], ['Biaya operasional', -biaya], ['LABA BERSIH', kotor - biaya], ['', ''], ['Info: total pembelian stok (setelah retur)', sum(B, 'Total') - sum(D.returBeli || [], 'Total')], ['Info: PPN masukan (setelah retur)', sum(B, 'PPN') - sum(D.returBeli || [], 'PPN')], ['Info: jumlah transaksi penjualan', J.length]];
     } else if (tab === 1) {
       heads = ['No', 'Tanggal', 'Pelanggan', 'Metode', 'Total', 'Bayar', 'Laba', 'Status']; rows = D.penjualan.map(x => [x.No, tglID(x.Tanggal), x.Pelanggan, x.Metode, x.Total, x.Bayar, x.Laba, x.Status]); foot = ['TOTAL', '', '', '', sum(J, 'Total'), sum(J, 'Bayar'), sum(J, 'Laba'), '(tanpa batal)'];
     } else if (tab === 2) {
       const m = {}; DJ.forEach(x => { const k = x.Nama; m[k] = m[k] || { q: 0, o: 0, l: 0 }; m[k].q += x.Qty; m[k].o += x.Subtotal; m[k].l += x.Subtotal - x.HPP * x.Qty; });
       heads = ['Produk', 'Qty', 'Omzet', 'Laba']; rows = Object.keys(m).sort((a, b) => m[b].q - m[a].q).map(k => [k, m[k].q, m[k].o, m[k].l]); foot = ['TOTAL', rows.reduce((p, c) => p + c[1], 0), rows.reduce((p, c) => p + c[2], 0), rows.reduce((p, c) => p + c[3], 0)];
     } else if (tab === 3) {
-      heads = ['No', 'Tanggal', 'Supplier', 'Total', 'Bayar', 'Status']; rows = D.pembelian.map(x => [x.No, tglID(x.Tanggal), x.Supplier, x.Total, x.Bayar, x.Status]); foot = ['TOTAL', '', '', sum(B, 'Total'), sum(B, 'Bayar'), ''];
+      heads = ['No', 'Tanggal', 'Supplier', 'Total', 'PPN', 'Bayar', 'Status']; rows = D.pembelian.map(x => [x.No, tglID(x.Tanggal), x.Supplier, x.Total, x.PPN, x.Bayar, x.Status]); foot = ['TOTAL', '', '', sum(B, 'Total'), sum(B, 'PPN'), sum(B, 'Bayar'), ''];
     } else if (tab === 4) {
       const bs = D.barang.filter(b => b.Kategori !== 'Jasa');
       heads = ['Kode', 'Barang', 'Kategori', 'Stok', 'Harga Beli', 'Nilai Beli', 'Nilai Jual']; rows = bs.map(b => [b.Kode, b.Nama + ' ' + b.Ukuran, b.Kategori, b.Stok, b.HargaBeli, b.Stok * b.HargaBeli, b.Stok * b.HargaJual]); foot = ['TOTAL', '', '', sum(bs, 'Stok'), '', rows.reduce((p, c) => p + c[5], 0), rows.reduce((p, c) => p + c[6], 0)];
@@ -600,9 +601,17 @@ async function pLaporan(v) {
       heads = ['Jenis', 'No', 'Tanggal', 'Pihak', 'Total', 'Bayar', 'Sisa']; rows = [...J.filter(x => x.Total > x.Bayar).map(x => ['Piutang', x.No, tglID(x.Tanggal), x.Pelanggan, x.Total, x.Bayar, x.Total - x.Bayar]), ...B.filter(x => x.Total > x.Bayar).map(x => ['Hutang', x.No, tglID(x.Tanggal), x.Supplier, x.Total, x.Bayar, x.Total - x.Bayar])];
     } else if (tab === 6) {
       heads = ['Tanggal', 'Kategori', 'Keterangan', 'Jumlah']; rows = D.pengeluaran.map(x => [tglID(x.Tanggal), x.Kategori, x.Keterangan, x.Jumlah]); foot = ['TOTAL', '', '', sum(D.pengeluaran, 'Jumlah')];
-    } else {
+    } else if (tab === 7) {
       const RR = D.retur || [];
       heads = ['No Retur', 'Tanggal', 'Nota', 'Pelanggan', 'Total', 'Potong Piutang', 'Uang Kembali', 'Alasan']; rows = RR.map(x => [x.No, tglID(x.Tanggal), x.NoNota, x.Pelanggan, x.Total, x.PotongPiutang, x.UangKembali, x.Alasan]); foot = ['TOTAL', '', '', '', sum(RR, 'Total'), sum(RR, 'PotongPiutang'), sum(RR, 'UangKembali'), ''];
+    } else if (tab === 8) {
+      const RB = D.returBeli || [];
+      heads = ['No Retur', 'Tanggal', 'Nota Beli', 'Supplier', 'Total', 'Potong Hutang', 'Uang Kembali', 'Alasan']; rows = RB.map(x => [x.No, tglID(x.Tanggal), x.NoNota, x.Supplier, x.Total, x.PotongHutang, x.UangKembali, x.Alasan]); foot = ['TOTAL', '', '', '', sum(RB, 'Total'), sum(RB, 'PotongHutang'), sum(RB, 'UangKembali'), ''];
+    } else {
+      const RB = D.returBeli || [];
+      heads = ['No', 'Tanggal', 'Supplier', 'DPP', 'PPN'];
+      rows = [...B.filter(x => x.PPN > 0).map(x => [x.No, tglID(x.Tanggal), x.Supplier, x.Total - x.PPN, x.PPN]), ...RB.filter(x => x.PPN > 0).map(x => [x.No + ' (retur)', tglID(x.Tanggal), x.Supplier, -(x.Total - x.PPN), -x.PPN])];
+      foot = ['TOTAL PPN MASUKAN', '', '', rows.reduce((p, c) => p + c[3], 0), rows.reduce((p, c) => p + c[4], 0)];
     }
     cur = { heads, rows, name: 'laporan-' + TABS[tab].replace(/\W+/g, '-').toLowerCase() };
     $('#lpR').innerHTML = `<h3>${TABS[tab]}</h3><p class="note" style="margin-bottom:10px">${tab === 4 ? 'Posisi stok saat ini' : per}</p>` + tbl(heads, rows, foot);
@@ -635,8 +644,8 @@ async function setView(n) {
 }
 
 async function pPengaturan(v) {
-  const c = S.cfg, F = [['nama_toko', 'Nama toko'], ['telp', 'Telepon / WA'], ['alamat', 'Alamat', 1], ['footer_struk', 'Catatan kaki struk', 1], ['prefix_beli', 'Awalan nomor nota beli'], ['kategori', 'Kategori barang (pisahkan koma; "Jasa" = tanpa stok)', 1]];
-  v.innerHTML = `<div class="grid2"><div class="card"><h3>Profil Toko & Nota</h3><div class="fg">${F.map(f => `<label class="f ${f[2] ? 'full' : ''}"><span>${f[1]}</span><input id="cf_${f[0]}" value="${e(c[f[0]])}"></label>`).join('')}</div><br><button class="btn p" id="cfSave">Simpan Pengaturan</button></div>
+  const c = S.cfg, F = [['nama_toko', 'Nama toko'], ['telp', 'Telepon / WA'], ['alamat', 'Alamat', 1], ['footer_struk', 'Catatan kaki struk', 1], ['prefix_beli', 'Awalan nomor nota beli'], ['kategori', 'Kategori barang (pisahkan koma; "Jasa" = tanpa stok)', 1], ['ppn_persen', 'Tarif PPN pembelian (%)'], ['ppn_hpp', 'PPN masuk ke harga pokok barang?', 0, [['N', 'Tidak (PPN = pajak masukan)'], ['Y', 'Ya (PPN tidak dikreditkan)']]]];
+  v.innerHTML = `<div class="grid2"><div class="card"><h3>Profil Toko & Nota</h3><div class="fg">${F.map(f => `<label class="f ${f[2] ? 'full' : ''}"><span>${f[1]}</span>${f[3] ? `<select id="cf_${f[0]}">${f[3].map(o => `<option value="${o[0]}" ${c[f[0]] === o[0] ? 'selected' : ''}>${o[1]}</option>`).join('')}</select>` : `<input id="cf_${f[0]}" value="${e(c[f[0]])}">`}</label>`).join('')}</div><br><button class="btn p" id="cfSave">Simpan Pengaturan</button></div>
   <div><div class="card"><h3>Ganti Password</h3><div class="fg"><label class="f full"><span>Password lama</span><input type="password" id="pl"></label><label class="f full"><span>Password baru (min. 6 karakter)</span><input type="password" id="pn"></label></div><br><button class="btn p" id="pwSave">Ubah Password</button></div>
   <div class="card"><h3>Tips</h3><p class="note">Data tersimpan di Google Spreadsheet milik Anda. Backup rutin: File → Buat salinan. Jasa pasang/balancing: buat barang berkategori "Jasa" agar tidak mengurangi stok.</p></div></div></div>
   <div class="card"><h3>Tampilan Kasir / Penjualan</h3><p class="note" style="margin-bottom:12px">Pilih tampilan halaman Kasir. Berlaku untuk semua pengguna.</p><div class="tiles">${VIEWS.map((t, i) => `<button class="tile ${(+S.cfg.tampilan_kasir || 1) === i + 1 ? 'on' : ''}" onclick="setView(${i + 1})">${thumb(i + 1)}<b>${i + 1}. ${t[0]}</b><small>${t[1]}</small></button>`).join('')}</div></div>
@@ -731,6 +740,51 @@ async function loadBackup() {
     $('#bkNow').onclick = async ev => { ev.target.disabled = true; try { await api('backupNow'); toast('Backup berhasil dibuat'); } catch (x) { fail(x); } loadBackup(); };
     if ($('#bkAuto')) $('#bkAuto').onclick = async () => { try { await api('backupAuto'); toast('Backup harian diaktifkan'); } catch (x) { fail(x); } loadBackup(); };
   } catch (x) { el.innerHTML = `<p class="note">${e(x.message)}</p>`; }
+}
+
+/* ============ PPN & RETUR PEMBELIAN ============ */
+const ppnRate = () => +S.cfg.ppn_persen || 11;
+function ppnCalc(sum, mode) {
+  const r = ppnRate();
+  if (mode === 'exclude') { const p = Math.round(sum * r / 100); return { ppn: p, total: sum + p }; }
+  if (mode === 'include') return { ppn: Math.round(sum * r / (100 + r)), total: sum };
+  return { ppn: 0, total: sum };
+}
+
+async function returBeliForm(id, cb) {
+  const r = await api('returInfoBeli', { id });
+  const rows = r.items.map(i => { const mx = Math.min(i.sisa, i.stok); return `<tr data-id="${i.id}" data-h="${i.harga}" data-max="${mx}"><td>${e(i.nama)}</td><td class="r">${nf(i.qty)}</td><td class="r">${nf(i.retur)}</td><td class="r">${nf(i.stok)}</td><td class="r">${rp(i.harga)}</td><td><input class="rq num" inputmode="numeric" placeholder="0" ${mx > 0 ? '' : 'disabled'} style="width:70px"></td></tr>`; }).join('');
+  modal('Retur Pembelian ' + r.purchase.No, `<div class="tw"><table><thead><tr><th>Barang</th><th class="r">Dibeli</th><th class="r">Sudah retur</th><th class="r">Stok saat ini</th><th class="r">Harga beli</th><th>Qty retur</th></tr></thead><tbody id="rbRows">${rows}</tbody></table></div>
+  <p class="note" style="margin:8px 0">Qty retur tidak bisa melebihi sisa nota maupun stok saat ini. Stok berkurang otomatis. Harga memakai harga di nota${r.mode === 'none' ? '' : ', PPN dihitung proporsional'}.</p>
+  <div class="fg"><label class="f"><span>Penyelesaian</span><select id="rbJ"><option>Uang Kembali</option>${r.hutang > 0 ? '<option>Potong Hutang</option>' : ''}</select></label><label class="f"><span>Alasan</span><input id="rbA" placeholder="mis. barang cacat"></label></div>
+  <div style="margin-top:10px;text-align:right"><div class="note">Subtotal: <b id="rbSub">Rp 0</b> &nbsp;·&nbsp; PPN: <b id="rbPpn">Rp 0</b></div><div>Total retur: <b class="tot" id="rbTot">Rp 0</b></div></div>`, async () => {
+    const items = [...document.querySelectorAll('#rbRows tr')].map(tr => ({ id: tr.dataset.id, qty: unf(tr.querySelector('.rq').value) })).filter(x => x.qty > 0);
+    if (!items.length) throw new Error('Isi qty retur minimal satu barang');
+    await api('saveReturBeli', { id, items, jenis: $('#rbJ').value, alasan: $('#rbA').value });
+    toast('Retur pembelian tersimpan, stok berkurang'); cb();
+  }, 'Simpan Retur', true);
+  const calc = () => {
+    let sb = 0;
+    document.querySelectorAll('#rbRows tr').forEach(tr => { const q = tr.querySelector('.rq'), mx = +tr.dataset.max; let n = unf(q.value); if (n > mx) { n = mx; q.value = nf(mx); } sb += n * tr.dataset.h; });
+    const p = Math.round(sb * r.ratio);
+    $('#rbSub').textContent = rp(sb); $('#rbPpn').textContent = rp(p); $('#rbTot').textContent = rp(r.mode === 'exclude' ? sb + p : sb);
+  };
+  document.querySelectorAll('#rbRows .rq').forEach(i => i.oninput = calc);
+}
+
+async function pReturBeli(v) {
+  v.innerHTML = rangeBar('rb') + '<div id="rbL"></div>';
+  const load = async () => {
+    const r = (await api('list', { sheet: 'ReturBeli', from: $('#rbF').value, to: $('#rbT').value })).reverse();
+    $('#rbL').innerHTML = tbl(['No Retur', 'Tanggal', 'Nota Beli', 'Supplier', 'Total', 'PPN', 'Potong Hutang', 'Uang Kembali', 'Alasan', ''],
+      r.map(x => [x.No, tglID(x.Tanggal) + ' ' + x.Waktu, x.NoNota, x.Supplier, x.Total, x.PPN, x.PotongHutang, x.UangKembali, x.Alasan, { h: `<button class="btn s" onclick="detailReturBeli('${x.No}','${x.Tanggal}')">Detail</button>`, c: 'act' }]),
+      ['TOTAL', '', '', '', sum(r, 'Total'), sum(r, 'PPN'), sum(r, 'PotongHutang'), sum(r, 'UangKembali'), '', '']);
+  };
+  window.detailReturBeli = async (no, t) => {
+    const d = (await api('list', { sheet: 'DetailReturBeli', from: t, to: t })).filter(x => x.NoRetur === no);
+    modal('Detail ' + no, tbl(['Barang', 'Qty', 'Harga', 'Subtotal'], d.map(x => [x.Nama, x.Qty, x.Harga, x.Subtotal])));
+  };
+  $('#rbGo').onclick = load; load();
 }
 
 /* ============ START ============ */
