@@ -217,12 +217,12 @@ function toast(m, err) {
 }
 const fail = x => toast(x.message || String(x), true);
 
-function modal(title, body, onOk, okText, wide) {
+function modal(title, body, onOk, okText, wide, force) {
   const m = $('#modal');
-  m.innerHTML = `<div class="mb ${wide ? 'w' : ''}"><div class="mh">${e(title)}</div><div class="mc">${body}</div><div class="mf"><button class="btn" id="mX">${onOk ? 'Batal' : 'Tutup'}</button>${onOk ? `<button class="btn p" id="mOk">${okText || 'Simpan'}</button>` : ''}</div></div>`;
+  m.innerHTML = `<div class="mb ${wide ? 'w' : ''}"><div class="mh">${e(title)}</div><div class="mc">${body}</div><div class="mf">${force ? '' : `<button class="btn" id="mX">${onOk ? 'Batal' : 'Tutup'}</button>`}${onOk ? `<button class="btn p" id="mOk">${okText || 'Simpan'}</button>` : ''}</div></div>`;
   m.classList.add('on');
   const close = () => { m.classList.remove('on'); m.innerHTML = ''; };
-  $('#mX').onclick = close;
+  if ($('#mX')) $('#mX').onclick = close;
   if (onOk) $('#mOk').onclick = async ev => {
     const b = ev.target; b.disabled = true;
     try { if ((await onOk(m)) !== false) close(); } catch (x) { fail(x); }
@@ -256,7 +256,7 @@ function formModal(title, fields, row, onSave) {
 
 function tbl(heads, rows, foot) {
   const cell = c => (c && typeof c === 'object' && 'h' in c) ? `<td${c.c ? ` class="${c.c}"` : ''}>${c.h}</td>` : typeof c === 'number' ? `<td class="r">${nf(c)}</td>` : `<td>${e(c)}</td>`;
-  return `<div class="tw"><table><thead><tr>${heads.map(h => `<th class="${/^(Harga|Total|Qty|Stok|Jumlah|Sisa|Subtotal|Bayar|Nilai|Laba|Diskon|HPP|Kurang|Kembali)/.test(h) ? 'r' : ''}">${h}</th>`).join('')}</tr></thead><tbody>${rows.length ? rows.map(r => `<tr>${r.map(cell).join('')}</tr>`).join('') : `<tr><td class="empty" colspan="${heads.length}">Belum ada data</td></tr>`}</tbody>${foot ? `<tfoot><tr>${foot.map(cell).join('')}</tr></tfoot>` : ''}</table></div>`;
+  return `<div class="tw"><table><thead><tr>${heads.map(h => `<th class="${/^(Harga|Total|Qty|Stok|Jumlah|Sisa|Subtotal|Bayar|Nilai|Laba|Diskon|HPP|Kurang|Kembali|Potong|Uang|Modal|Seharusnya|Hitung|Selisih|Pelunasan)/.test(h) ? 'r' : ''}">${h}</th>`).join('')}</tr></thead><tbody>${rows.length ? rows.map(r => `<tr>${r.map(cell).join('')}</tr>`).join('') : `<tr><td class="empty" colspan="${heads.length}">Belum ada data</td></tr>`}</tbody>${foot ? `<tfoot><tr>${foot.map(cell).join('')}</tr></tfoot>` : ''}</table></div>`;
 }
 const badge = s => `<span class="bd ${{ Lunas: 'ok', Piutang: 'bad', Hutang: 'bad', Batal: 'warn' }[s] || ''}">${e(s)}</span>`;
 const sum = (a, k) => a.reduce((p, c) => p + (+c[k] || 0), 0);
@@ -288,7 +288,7 @@ async function boot() {
     $('#login').style.display = 'none'; $('#splash').style.display = 'none'; $('#app').style.display = 'block';
     $('#sName').textContent = S.cfg.nama_toko || 'Menara Ban'; document.title = (S.cfg.nama_toko || 'Menara Ban') + ' - Aplikasi Toko';
     $('#meName').textContent = S.user.nama; $('#meRole').textContent = S.user.role === 'admin' ? 'Administrator' : 'Kasir';
-    buildNav(); route();
+    buildNav(); route(); if (S.user.wajib) forcePw();
   } catch (x) {
     if (S.token) { $('#login').style.display = 'none'; const sp = $('#splash'); sp.style.display = 'grid'; sp.innerHTML = `<div style="text-align:center;padding:20px"><p style="margin-bottom:12px">Gagal terhubung: ${e(x.message)}</p><button class="btn p" onclick="location.reload()">Coba lagi</button></div>`; }
   }
@@ -305,15 +305,17 @@ const IC = {
   users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/>',
   wallet: '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>',
   chart: '<path d="M18 20V10M12 20V4M6 20v-6"/>',
+  lock: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  undo: '<path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/>',
   gear: '<circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.2 4.2L7 7M17 17l2.8 2.8M1 12h4M19 12h4M4.2 19.8L7 17M17 7l2.8-2.8"/>'
 };
 const MENU = [
-  ['dashboard', 'Dashboard', 'dash'], ['kasir', 'Kasir / Penjualan', 'cart'], ['penjualan', 'Riwayat Penjualan', 'list'],
+  ['dashboard', 'Dashboard', 'dash'], ['kasir', 'Kasir / Penjualan', 'cart'], ['penjualan', 'Riwayat Penjualan', 'list'], ['retur', 'Retur Penjualan', 'undo', 1], ['tutup', 'Tutup Kasir', 'lock'],
   ['pembelian', 'Pembelian', 'truck', 1], ['barang', 'Barang & Stok', 'box'], ['mutasi', 'Mutasi Stok', 'swap', 1],
   ['pelanggan', 'Pelanggan', 'users'], ['supplier', 'Supplier', 'users', 1], ['pengeluaran', 'Pengeluaran', 'wallet', 1],
   ['laporan', 'Laporan', 'chart', 1], ['pengaturan', 'Pengaturan', 'gear', 1]
 ];
-const PAGES = () => ({ dashboard: pDashboard, kasir: pKasir, penjualan: pPenjualan, pembelian: pPembelian, barang: pBarang, mutasi: pMutasi, pelanggan: pPelanggan, supplier: pSupplier, pengeluaran: pPengeluaran, laporan: pLaporan, pengaturan: pPengaturan });
+const PAGES = () => ({ dashboard: pDashboard, kasir: pKasir, penjualan: pPenjualan, pembelian: pPembelian, barang: pBarang, mutasi: pMutasi, pelanggan: pPelanggan, supplier: pSupplier, pengeluaran: pPengeluaran, laporan: pLaporan, pengaturan: pPengaturan, retur: pRetur, tutup: pTutup });
 function toggleSide(on) {
   const v = on === undefined ? !$('#side').classList.contains('on') : on;
   $('#side').classList.toggle('on', v); $('#scrim').classList.toggle('on', v);
@@ -457,7 +459,7 @@ async function pPenjualan(v) {
     const r = await api('list', { sheet: 'Penjualan', from: $('#pjF').value, to: $('#pjT').value }); r.reverse();
     const ok = r.filter(x => x.Batal !== 'Y');
     $('#pjR').innerHTML = tbl(['No', 'Tanggal', 'Pelanggan', 'Total', 'Bayar', 'Status', 'Kasir', ''], r.map(x => [x.No, tglID(x.Tanggal) + ' ' + x.Waktu, x.Pelanggan, x.Total, x.Bayar, H(badge(x.Status)),
-      x.Kasir, H(`<button class="btn s" onclick="strukLama('${x.ID}')">Struk</button>${x.Status === 'Piutang' ? `<button class="btn s p" onclick="lunasi('jual','${x.ID}',${x.Total - x.Bayar},load_pj)">Bayar</button>` : ''}${isAdmin() && x.Batal !== 'Y' ? `<button class="btn s d" onclick="batal('jual','${x.ID}',load_pj)">Batal</button>` : ''}`)].map((c, i) => i === 7 ? { h: c.h, c: 'act' } : c)),
+      x.Kasir, H(`<button class="btn s" onclick="strukLama('${x.ID}')">Struk</button>${x.Status === 'Piutang' ? `<button class="btn s p" onclick="lunasi('jual','${x.ID}',${x.Total - x.Bayar},load_pj)">Bayar</button>` : ''}${isAdmin() && x.Batal !== 'Y' ? `<button class="btn s" onclick="returForm('${x.ID}',load_pj)">Retur</button><button class="btn s d" onclick="batal('jual','${x.ID}',load_pj)">Batal</button>` : ''}`)].map((c, i) => i === 7 ? { h: c.h, c: 'act' } : c)),
       ['Total ' + ok.length + ' transaksi', '', '', sum(ok, 'Total'), sum(ok, 'Bayar'), '', '', '']);
   };
   window.load_pj = load; $('#pjGo').onclick = load; load();
@@ -468,7 +470,7 @@ async function pPenjualan(v) {
   };
 }
 function lunasi(type, id, sisa, cb) {
-  modal('Pelunasan', `<label class="f"><span>Jumlah pembayaran (sisa ${rp(sisa)})</span><input class="num" inputmode="numeric" id="lj" value="${nf(sisa)}"></label>`, async () => { await api('pay', { type, id, jumlah: unf($('#lj').value) }); toast('Pembayaran dicatat'); cb(); }, 'Catat');
+  modal('Pelunasan', `<div class="fg"><label class="f"><span>Jumlah (sisa ${rp(sisa)})</span><input class="num" inputmode="numeric" id="lj" value="${nf(sisa)}"></label><label class="f"><span>Metode</span><select id="lm"><option>Tunai</option><option>Transfer</option><option>QRIS</option><option>Debit</option></select></label></div>`, async () => { await api('pay', { type, id, jumlah: unf($('#lj').value), metode: $('#lm').value }); toast('Pembayaran dicatat'); cb(); }, 'Catat');
 }
 function batal(type, id, cb) {
   modal('Batalkan Transaksi', `<p>Stok akan dikembalikan otomatis. Tindakan ini tidak bisa dibatalkan.</p><br><label class="f"><span>Alasan</span><input id="ba" placeholder="mis. salah input"></label>`, async () => { await api('void', { type, id, alasan: $('#ba').value }); toast('Transaksi dibatalkan'); cb(); }, 'Batalkan transaksi');
@@ -572,7 +574,7 @@ async function pMutasi(v) {
 /* ============ LAPORAN ============ */
 async function pLaporan(v) {
   v.innerHTML = rangeBar('lp', 0, '<button class="btn" onclick="window.print()">Cetak</button><button class="btn" id="lpCsv">Ekspor CSV</button>') + '<div class="tabs" id="lpTabs"></div><div class="card"><div class="ph"><h2>' + e(S.cfg.nama_toko) + '</h2></div><div id="lpR"></div></div>';
-  const TABS = ['Laba Rugi', 'Penjualan', 'Produk Terjual', 'Pembelian', 'Stok Barang', 'Piutang & Hutang', 'Pengeluaran'];
+  const TABS = ['Laba Rugi', 'Penjualan', 'Produk Terjual', 'Pembelian', 'Stok Barang', 'Piutang & Hutang', 'Pengeluaran', 'Retur'];
   let D = null, tab = 0, cur = null;
   const draw = () => {
     $('#lpTabs').innerHTML = TABS.map((t, i) => `<button class="${i === tab ? 'on' : ''}" data-t="${i}">${t}</button>`).join('');
@@ -582,8 +584,8 @@ async function pLaporan(v) {
     const DJ = D.detailJual.filter(x => ok[x.NoNota]), B = D.pembelian.filter(x => x.Batal !== 'Y');
     let heads, rows, foot, html;
     if (tab === 0) {
-      const omzet = sum(J, 'Subtotal'), disk = sum(J, 'Diskon'), hpp = DJ.reduce((p, c) => p + c.HPP * c.Qty, 0), kotor = sum(J, 'Laba'), biaya = sum(D.pengeluaran, 'Jumlah');
-      heads = ['Keterangan', 'Jumlah (Rp)']; rows = [['Penjualan kotor', omzet], ['Diskon nota', -disk], ['Penjualan bersih', omzet - disk], ['Harga pokok penjualan (HPP)', -hpp], ['Laba kotor', kotor], ['Biaya operasional', -biaya], ['LABA BERSIH', kotor - biaya], ['', ''], ['Info: total pembelian stok periode ini', sum(B, 'Total')], ['Info: jumlah transaksi penjualan', J.length]];
+      const omzet = sum(J, 'Subtotal'), disk = sum(J, 'Diskon'), hpp = DJ.reduce((p, c) => p + c.HPP * c.Qty, 0), RT = D.retur || [], rTot = sum(RT, 'Total'), hppBalik = rTot - sum(RT, 'Laba'), kotor = sum(J, 'Laba') - sum(RT, 'Laba'), biaya = sum(D.pengeluaran, 'Jumlah');
+      heads = ['Keterangan', 'Jumlah (Rp)']; rows = [['Penjualan kotor', omzet], ['Diskon nota', -disk], ['Penjualan bersih', omzet - disk], ['Retur penjualan', -rTot], ['Penjualan neto', omzet - disk - rTot], ['Harga pokok penjualan (HPP, setelah retur)', -(hpp - hppBalik)], ['Laba kotor', kotor], ['Biaya operasional', -biaya], ['LABA BERSIH', kotor - biaya], ['', ''], ['Info: total pembelian stok periode ini', sum(B, 'Total')], ['Info: jumlah transaksi penjualan', J.length]];
     } else if (tab === 1) {
       heads = ['No', 'Tanggal', 'Pelanggan', 'Metode', 'Total', 'Bayar', 'Laba', 'Status']; rows = D.penjualan.map(x => [x.No, tglID(x.Tanggal), x.Pelanggan, x.Metode, x.Total, x.Bayar, x.Laba, x.Status]); foot = ['TOTAL', '', '', '', sum(J, 'Total'), sum(J, 'Bayar'), sum(J, 'Laba'), '(tanpa batal)'];
     } else if (tab === 2) {
@@ -596,8 +598,11 @@ async function pLaporan(v) {
       heads = ['Kode', 'Barang', 'Kategori', 'Stok', 'Harga Beli', 'Nilai Beli', 'Nilai Jual']; rows = bs.map(b => [b.Kode, b.Nama + ' ' + b.Ukuran, b.Kategori, b.Stok, b.HargaBeli, b.Stok * b.HargaBeli, b.Stok * b.HargaJual]); foot = ['TOTAL', '', '', sum(bs, 'Stok'), '', rows.reduce((p, c) => p + c[5], 0), rows.reduce((p, c) => p + c[6], 0)];
     } else if (tab === 5) {
       heads = ['Jenis', 'No', 'Tanggal', 'Pihak', 'Total', 'Bayar', 'Sisa']; rows = [...J.filter(x => x.Total > x.Bayar).map(x => ['Piutang', x.No, tglID(x.Tanggal), x.Pelanggan, x.Total, x.Bayar, x.Total - x.Bayar]), ...B.filter(x => x.Total > x.Bayar).map(x => ['Hutang', x.No, tglID(x.Tanggal), x.Supplier, x.Total, x.Bayar, x.Total - x.Bayar])];
-    } else {
+    } else if (tab === 6) {
       heads = ['Tanggal', 'Kategori', 'Keterangan', 'Jumlah']; rows = D.pengeluaran.map(x => [tglID(x.Tanggal), x.Kategori, x.Keterangan, x.Jumlah]); foot = ['TOTAL', '', '', sum(D.pengeluaran, 'Jumlah')];
+    } else {
+      const RR = D.retur || [];
+      heads = ['No Retur', 'Tanggal', 'Nota', 'Pelanggan', 'Total', 'Potong Piutang', 'Uang Kembali', 'Alasan']; rows = RR.map(x => [x.No, tglID(x.Tanggal), x.NoNota, x.Pelanggan, x.Total, x.PotongPiutang, x.UangKembali, x.Alasan]); foot = ['TOTAL', '', '', '', sum(RR, 'Total'), sum(RR, 'PotongPiutang'), sum(RR, 'UangKembali'), ''];
     }
     cur = { heads, rows, name: 'laporan-' + TABS[tab].replace(/\W+/g, '-').toLowerCase() };
     $('#lpR').innerHTML = `<h3>${TABS[tab]}</h3><p class="note" style="margin-bottom:10px">${tab === 4 ? 'Posisi stok saat ini' : per}</p>` + tbl(heads, rows, foot);
@@ -632,10 +637,12 @@ async function setView(n) {
 async function pPengaturan(v) {
   const c = S.cfg, F = [['nama_toko', 'Nama toko'], ['telp', 'Telepon / WA'], ['alamat', 'Alamat', 1], ['footer_struk', 'Catatan kaki struk', 1], ['prefix_beli', 'Awalan nomor nota beli'], ['kategori', 'Kategori barang (pisahkan koma; "Jasa" = tanpa stok)', 1]];
   v.innerHTML = `<div class="grid2"><div class="card"><h3>Profil Toko & Nota</h3><div class="fg">${F.map(f => `<label class="f ${f[2] ? 'full' : ''}"><span>${f[1]}</span><input id="cf_${f[0]}" value="${e(c[f[0]])}"></label>`).join('')}</div><br><button class="btn p" id="cfSave">Simpan Pengaturan</button></div>
-  <div><div class="card"><h3>Ganti Password</h3><div class="fg"><label class="f full"><span>Password lama</span><input type="password" id="pl"></label><label class="f full"><span>Password baru (min. 5 karakter)</span><input type="password" id="pn"></label></div><br><button class="btn p" id="pwSave">Ubah Password</button></div>
+  <div><div class="card"><h3>Ganti Password</h3><div class="fg"><label class="f full"><span>Password lama</span><input type="password" id="pl"></label><label class="f full"><span>Password baru (min. 6 karakter)</span><input type="password" id="pn"></label></div><br><button class="btn p" id="pwSave">Ubah Password</button></div>
   <div class="card"><h3>Tips</h3><p class="note">Data tersimpan di Google Spreadsheet milik Anda. Backup rutin: File → Buat salinan. Jasa pasang/balancing: buat barang berkategori "Jasa" agar tidak mengurangi stok.</p></div></div></div>
   <div class="card"><h3>Tampilan Kasir / Penjualan</h3><p class="note" style="margin-bottom:12px">Pilih tampilan halaman Kasir. Berlaku untuk semua pengguna.</p><div class="tiles">${VIEWS.map((t, i) => `<button class="tile ${(+S.cfg.tampilan_kasir || 1) === i + 1 ? 'on' : ''}" onclick="setView(${i + 1})">${thumb(i + 1)}<b>${i + 1}. ${t[0]}</b><small>${t[1]}</small></button>`).join('')}</div></div>
+  <div class="card"><h3>Backup Data</h3><div id="bk">Memuat...</div></div>
   <div class="card"><h3>Pengguna Aplikasi</h3><div id="usr"></div></div>`;
+  loadBackup();
   $('#cfSave').onclick = async () => { const o = {}; F.forEach(f => o[f[0]] = $('#cf_' + f[0]).value); S.cfg = await api('saveSettings', o); $('#sName').textContent = S.cfg.nama_toko; toast('Pengaturan tersimpan'); };
   $('#pwSave').onclick = async () => { try { await api('changePassword', { lama: $('#pl').value, baru: $('#pn').value }); toast('Password diubah'); $('#pl').value = $('#pn').value = ''; } catch (x) { fail(x); } };
   const el = $('#usr');
@@ -645,6 +652,85 @@ async function pPengaturan(v) {
     fields: [{ k: 'Username', l: 'Username', req: 1 }, { k: 'Nama', l: 'Nama lengkap', req: 1 }, { k: 'Password', l: 'Password (kosong = tidak diubah)', t: 'password' }, { k: 'Role', l: 'Hak akses', t: 'select', o: [['kasir', 'Kasir'], ['admin', 'Admin']] }, { k: 'Aktif', l: 'Status', t: 'select', o: [['Y', 'Aktif'], ['N', 'Nonaktif']] }],
     cols: [['Username', r => r.Username], ['Nama', r => r.Nama], ['Hak akses', r => r.Role], ['Status', r => H(r.Aktif === 'Y' ? '<span class="bd ok">Aktif</span>' : '<span class="bd">Nonaktif</span>')]]
   });
+}
+
+/* ============ PASSWORD WAJIB, RETUR, TUTUP KASIR, BACKUP ============ */
+function forcePw() {
+  modal('Ganti Password Wajib', `<p class="note" style="margin-bottom:12px">Anda masih memakai password bawaan. Demi keamanan, ganti sekarang.</p><div class="fg"><label class="f full"><span>Password lama</span><input type="password" id="fp0" autocomplete="current-password"></label><label class="f full"><span>Password baru (min. 6 karakter)</span><input type="password" id="fp1" autocomplete="new-password"></label><label class="f full"><span>Ulangi password baru</span><input type="password" id="fp2" autocomplete="new-password"></label></div>`, async () => {
+    if ($('#fp1').value !== $('#fp2').value) throw new Error('Ulangi password tidak sama');
+    await api('changePassword', { lama: $('#fp0').value, baru: $('#fp1').value });
+    S.user.wajib = false; toast('Password berhasil diganti'); route();
+  }, 'Simpan Password', false, true);
+}
+
+async function returForm(id, cb) {
+  const r = await api('returInfo', { id });
+  const rows = r.items.map(i => `<tr data-id="${i.id}" data-h="${i.harga}" data-max="${i.sisa}"><td>${e(i.nama)}</td><td class="r">${nf(i.qty)}</td><td class="r">${nf(i.retur)}</td><td class="r">${rp(i.harga)}</td><td><input class="rq num" inputmode="numeric" placeholder="0" ${i.sisa ? '' : 'disabled'} style="width:70px"></td><td><select class="rk"><option>Baik</option><option>Rusak</option></select></td></tr>`).join('');
+  modal('Retur Nota ' + r.sale.No, `<div class="tw"><table><thead><tr><th>Barang</th><th class="r">Terjual</th><th class="r">Sudah retur</th><th class="r">Harga</th><th>Qty retur</th><th>Kondisi</th></tr></thead><tbody id="rtR">${rows}</tbody></table></div>
+  <p class="note" style="margin:8px 0">Kondisi <b>Baik</b>: barang kembali ke stok. <b>Rusak</b>: tidak masuk stok (dicatat sebagai kerugian). Harga retur sudah memperhitungkan diskon nota.</p>
+  <div class="fg"><label class="f"><span>Pengembalian</span><select id="rj"><option>Uang Kembali</option>${r.piutang > 0 ? '<option>Potong Piutang</option>' : ''}</select></label><label class="f"><span>Uang kembali via</span><select id="rm"><option>Tunai</option><option>Transfer</option></select></label><label class="f full"><span>Alasan</span><input id="ra" placeholder="mis. salah ukuran / cacat"></label></div>
+  <p style="margin-top:10px">Total retur: <b class="tot" id="rtT">Rp 0</b></p>`, async () => {
+    const items = [...document.querySelectorAll('#rtR tr')].map(tr => ({ id: tr.dataset.id, qty: unf(tr.querySelector('.rq').value), kondisi: tr.querySelector('.rk').value })).filter(x => x.qty > 0);
+    if (!items.length) throw new Error('Isi qty retur minimal satu barang');
+    await api('saveRetur', { id, items, jenis: $('#rj').value, metode: $('#rm').value, alasan: $('#ra').value });
+    toast('Retur tersimpan'); cb();
+  }, 'Simpan Retur', true);
+  const calc = () => { let t = 0; document.querySelectorAll('#rtR tr').forEach(tr => { const q = tr.querySelector('.rq'), mx = +tr.dataset.max; let n = unf(q.value); if (n > mx) { n = mx; q.value = nf(mx); } t += n * tr.dataset.h; }); $('#rtT').textContent = rp(t); };
+  document.querySelectorAll('#rtR .rq').forEach(i => i.oninput = calc);
+}
+
+async function pRetur(v) {
+  v.innerHTML = rangeBar('rt') + '<div id="rtL"></div>';
+  const load = async () => {
+    const r = (await api('list', { sheet: 'Retur', from: $('#rtF').value, to: $('#rtT').value })).reverse();
+    $('#rtL').innerHTML = tbl(['No Retur', 'Tanggal', 'Nota', 'Pelanggan', 'Total', 'Potong Piutang', 'Uang Kembali', 'Alasan', ''],
+      r.map(x => [x.No, tglID(x.Tanggal) + ' ' + x.Waktu, x.NoNota, x.Pelanggan, x.Total, x.PotongPiutang, x.UangKembali, x.Alasan, { h: `<button class="btn s" onclick="detailRetur('${x.No}','${x.Tanggal}')">Detail</button>`, c: 'act' }]),
+      ['TOTAL', '', '', '', sum(r, 'Total'), sum(r, 'PotongPiutang'), sum(r, 'UangKembali'), '', '']);
+  };
+  window.detailRetur = async (no, t) => {
+    const d = (await api('list', { sheet: 'DetailRetur', from: t, to: t })).filter(x => x.NoRetur === no);
+    modal('Detail ' + no, tbl(['Barang', 'Qty', 'Harga', 'Subtotal', 'Kondisi'], d.map(x => [x.Nama, x.Qty, x.Harga, x.Subtotal, x.Kondisi])));
+  };
+  $('#rtGo').onclick = load; load();
+}
+
+async function pTutup(v) {
+  v.innerHTML = `<div class="bar"><label>Tanggal <input type="date" id="tkD" value="${today()}"></label><button class="btn p" id="tkGo">Hitung</button></div><div id="tkR"></div>`;
+  const load = async () => {
+    const tgl = $('#tkD').value, r = await api('tutupInfo', { tanggal: tgl }), h = r.hitung;
+    const M = ['Tunai', 'Transfer', 'QRIS', 'Debit'], masuk = (h.jual.Tunai || 0) + (h.lunas.Tunai || 0);
+    const rows = M.map(m => [m, h.jual[m] || 0, h.lunas[m] || 0, (h.jual[m] || 0) + (h.lunas[m] || 0)]);
+    const tot = i => rows.reduce((p, c) => p + c[i], 0);
+    $('#tkR').innerHTML = `<div class="stats"><div class="st"><small>Jumlah nota</small><b>${h.jml}</b><i>tidak termasuk yang dibatalkan</i></div><div class="st a"><small>Total penjualan</small><b>${rp(h.total)}</b><i>piutang baru ${rp(h.piutang)}</i></div><div class="st r"><small>Retur (uang kembali tunai)</small><b>${rp(h.returTunai)}</b></div><div class="st r"><small>Pengeluaran</small><b>${rp(h.pengeluaran)}</b></div></div>
+    <div class="grid2"><div class="card"><h3>Penerimaan per metode</h3>${tbl(['Metode', 'Penjualan', 'Pelunasan piutang', 'Total'], rows, ['TOTAL', tot(1), tot(2), tot(3)])}</div>
+    <div class="card"><h3>Hitung uang laci</h3><div class="fg"><label class="f"><span>Modal awal laci (Rp)</span><input class="num" inputmode="numeric" id="tkM" placeholder="0"></label><label class="f"><span>Uang fisik di laci (Rp)</span><input class="num" inputmode="numeric" id="tkH" placeholder="hasil hitung"></label>
+    <div class="f full"><span>Uang seharusnya = modal + tunai masuk (${rp(masuk)}) - retur tunai - pengeluaran</span><b class="tot" id="tkS">Rp 0</b></div><div class="f full"><span>Selisih</span><b id="tkSel">-</b></div><label class="f full"><span>Catatan</span><input id="tkC"></label></div><br>
+    <button class="btn a" id="tkSave">Simpan Tutup Kasir</button><p class="note" style="margin-top:8px">Pembelian stok tidak dihitung dari laci. Jika dibayar dari uang laci, catat di menu Pengeluaran.</p></div></div>
+    <div class="card"><h3>Riwayat tutup kasir</h3>${tbl(['Tanggal', 'Jam', 'Kasir', 'Modal', 'Seharusnya', 'Hitung', 'Selisih', 'Catatan'], r.riwayat.map(x => [tglID(x.Tanggal), x.Waktu, x.Kasir, x.Modal, x.Seharusnya, x.Hitung, H(`<span class="bd ${x.Selisih === 0 ? 'ok' : 'bad'}">${x.Selisih > 0 ? '+' : ''}${nf(x.Selisih)}</span>`), x.Catatan]))}</div>`;
+    const calc = () => {
+      const sh = unf($('#tkM').value) + masuk - h.returTunai - h.pengeluaran; $('#tkS').textContent = rp(sh);
+      if ($('#tkH').value === '') { $('#tkSel').textContent = '-'; return; }
+      const d = unf($('#tkH').value) - sh;
+      $('#tkSel').innerHTML = `<span class="bd ${d === 0 ? 'ok' : 'bad'}">${d > 0 ? '+' : ''}${nf(d)} ${d === 0 ? '(pas)' : d > 0 ? '(lebih)' : '(kurang)'}</span>`;
+    };
+    $('#tkM').oninput = $('#tkH').oninput = calc; calc();
+    $('#tkSave').onclick = async ev => {
+      if ($('#tkH').value === '') return toast('Isi uang fisik di laci', true);
+      ev.target.disabled = true;
+      try { await api('tutupSave', { tanggal: tgl, modal: unf($('#tkM').value), hitung: unf($('#tkH').value), catatan: $('#tkC').value }); toast('Tutup kasir tersimpan'); load(); } catch (x) { fail(x); ev.target.disabled = false; }
+    };
+  };
+  $('#tkGo').onclick = load; load();
+}
+
+async function loadBackup() {
+  const el = $('#bk'); if (!el) return;
+  try {
+    const r = await api('backupList');
+    el.innerHTML = `<p class="note" style="margin-bottom:10px">Backup harian otomatis: <span class="bd ${r.aktif ? 'ok' : 'bad'}">${r.aktif ? 'Aktif (setiap malam sekitar pukul 23.00)' : 'Belum aktif'}</span>. Salinan disimpan di Google Drive, folder "Backup Menara Ban" (30 terakhir).</p><div class="bar"><button class="btn p" id="bkNow">Backup Sekarang</button>${r.aktif ? '' : '<button class="btn a" id="bkAuto">Aktifkan Backup Harian</button>'}</div>${tbl(['Nama file', 'Dibuat', ''], r.files.map(f => [f.name, f.tgl, { h: `<a class="btn s" href="${e(f.url)}" target="_blank" rel="noopener">Buka</a>`, c: 'act' }]))}`;
+    $('#bkNow').onclick = async ev => { ev.target.disabled = true; try { await api('backupNow'); toast('Backup berhasil dibuat'); } catch (x) { fail(x); } loadBackup(); };
+    if ($('#bkAuto')) $('#bkAuto').onclick = async () => { try { await api('backupAuto'); toast('Backup harian diaktifkan'); } catch (x) { fail(x); } loadBackup(); };
+  } catch (x) { el.innerHTML = `<p class="note">${e(x.message)}</p>`; }
 }
 
 /* ============ START ============ */
