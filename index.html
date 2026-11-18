@@ -141,6 +141,94 @@ html,body{overscroll-behavior-y:contain}
 }
 @media print{aside,.top,.bar,.tabs,#burger,.noprint{display:none!important}main{margin:0;padding:0}.card{border:0}body{background:#fff}.ph{display:block!important}}
 .ph{display:none;margin-bottom:10px}
+
+/* ===== MODERN MENARA BAN UI REFRESH ===== */
+:root{
+ --ink:#18212b;--ink2:#344253;--mut:#728094;--line:#e6eaf0;--bg:#f5f7fa;--card:#fff;
+ --pri:#1769aa;--pri2:#10588f;--amb:#ff9f1c;--ok:#15803d;--bad:#dc2626;--warn:#b45309;--r:16px;
+}
+body{font-family:'Public Sans',system-ui,sans-serif;background:#f4f6f9;color:#17202b;font-size:14px}
+h1,h2,h3,.hd{font-family:'Public Sans',system-ui,sans-serif;letter-spacing:-.3px}
+#login{background:radial-gradient(circle at 15% 20%,#26435c 0,#142334 48%,#0c1724 100%)}
+.lbox{border-radius:20px;padding:34px;box-shadow:0 24px 70px rgba(0,0,0,.28)}
+.lbox h2{font-size:25px;font-weight:700}
+.lbox .btn{border-radius:10px}
+aside{width:248px;background:#111d2b;color:#c8d3df;box-shadow:8px 0 30px rgba(15,25,35,.04)}
+aside .logo{padding:22px 20px 20px}
+aside .tire{border-color:#f3f6f8;box-shadow:inset 0 0 0 3px #ff9f1c}
+nav{padding:12px}
+nav a{padding:11px 13px;border-radius:10px;margin:3px 0;font-size:13.5px}
+nav a.on{background:#ff9f1c;color:#152333;box-shadow:0 4px 12px rgba(255,159,28,.18)}
+nav a:hover:not(.on){background:rgba(255,255,255,.09)}
+.me{padding:16px;border-top-color:rgba(255,255,255,.08)}
+.me .btn{background:#243447;color:#dce5ef;border-color:#35475c}
+main{margin-left:248px;padding:26px 30px 64px}
+.top{margin-bottom:22px}
+.top h1{font-size:26px;font-weight:700}
+.card{border:1px solid #e8ecf2;border-radius:16px;padding:20px;background:#fff;box-shadow:0 3px 14px rgba(20,35,55,.035)}
+.card h3{font-size:16px;font-weight:700;margin-bottom:14px}
+.btn{border-radius:10px;padding:9px 14px;font-weight:600;border-color:#e0e6ee;transition:.15s}
+.btn:hover{transform:translateY(-1px);background:#f3f6fa}
+.btn.p{background:#1769aa;border-color:#1769aa;color:white}
+.btn.p:hover{background:#10588f}
+.btn.a{background:#ff9f1c;border-color:#ff9f1c;color:#17202b}
+input,select,textarea{border-color:#dce3eb;border-radius:10px;padding:10px 12px}
+input:focus,select:focus,textarea:focus{border-color:#1769aa;box-shadow:0 0 0 3px rgba(23,105,170,.12)}
+.stats{gap:16px}
+.st{border:1px solid #e8ecf2;border-left:0;border-radius:14px;padding:18px;box-shadow:0 3px 14px rgba(20,35,55,.035);position:relative}
+.st:before{content:"";position:absolute;left:0;top:14px;bottom:14px;width:4px;border-radius:5px;background:#1769aa}
+.st.a:before{background:#ff9f1c}.st.g:before{background:#16a34a}.st.r:before{background:#dc2626}
+.st b{font-family:'Public Sans',system-ui,sans-serif;font-size:22px;font-weight:700;letter-spacing:-.5px}
+.st small{font-size:12px;color:#718096}
+.grid2{gap:16px}
+.tw{border-radius:12px;border-color:#e8ecf2}
+th{background:#f7f9fc;padding:12px 13px;color:#64748b}
+td{padding:11px 13px}
+tbody tr:hover{background:#f8fafc}
+.tabs button{border-radius:9px;padding:8px 13px}
+.tabs button.on{background:#172536}
+.bd{padding:4px 10px}
+#modal .mb{border-radius:16px;overflow:hidden}
+.mh{font-family:'Public Sans',system-ui,sans-serif;font-weight:700;padding:18px 20px}
+.mc{padding:20px}
+.mf{padding:15px 20px}
+#toast div{border-radius:12px;padding:12px 16px}
+.pos{grid-template-columns:minmax(0,1.25fr) minmax(360px,.85fr);gap:18px}
+.pos .card{border-radius:16px}
+.pos .bar{margin-bottom:14px}
+.pos .bar input{min-height:46px}
+.pos .bar select{min-height:46px}
+.plist{grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;max-height:calc(100vh - 235px)}
+.pi{border:1px solid #e8ecf2;border-radius:13px;padding:14px;min-height:118px;transition:.15s}
+.pi:hover{border-color:#9bc4e4;box-shadow:0 5px 18px rgba(23,105,170,.09);transform:translateY(-1px)}
+.pi b{font-size:14px}
+.pi .pr{font-family:'Public Sans',system-ui,sans-serif;font-size:17px;font-weight:700;color:#1769aa}
+.pi small{font-size:12px;color:#718096}
+#cart{position:sticky;top:18px}
+#cart h3{display:flex;align-items:center;justify-content:space-between}
+.ci{grid-template-columns:minmax(0,1fr) 62px 90px 76px 28px;gap:7px;padding:11px 0;border-bottom:1px solid #eef1f5}
+.ci>div b{font-size:13px}
+.ci input{font-size:12px;padding:7px 5px;text-align:right}
+.ci .x{border-radius:8px;font-size:20px}
+.sum{gap:11px}
+.sum .row{min-height:34px}
+.sum .row input,.sum .row select{border-radius:9px;padding:8px}
+.tot{font-family:'Public Sans',system-ui,sans-serif;font-size:24px;font-weight:800;letter-spacing:-.5px;color:#1769aa}
+#bSave{border-radius:12px;background:#ff9f1c;border-color:#ff9f1c;color:#18212b;font-weight:800}
+#bSave:hover{background:#f39108}
+.pos .note{color:#758397}
+@media(max-width:1100px){main{padding:20px}.pos{grid-template-columns:1fr}.plist{max-height:45vh}#cart{position:static}}
+@media(max-width:900px){aside{width:248px}main{margin-left:0;padding:14px 12px 55px}.top h1{font-size:22px}.pos{grid-template-columns:1fr}.pos .card{padding:15px}.plist{max-height:42vh;grid-template-columns:repeat(auto-fill,minmax(145px,1fr))}.ci{grid-template-columns:1fr 56px 78px 24px}.ci .dk{display:none}}
+
+.scan-hint{font-size:12px;color:#78879a;margin:-2px 0 12px;padding:0 2px}
+.modern-pos .pi{display:flex;flex-direction:column;align-items:flex-start;gap:5px}
+.modern-pos .pi .pr{margin-top:auto;padding-top:3px}
+.modern-pos .pi small:last-child{font-size:11px}
+.modern-pos #cart .sum{border-top:1px solid #edf1f5;margin-top:14px;padding-top:14px}
+.modern-pos #cart .sum .row:nth-child(3){padding:8px 0}
+.modern-pos #cart .sum .row:nth-child(3) .tot{font-size:27px}
+.modern-pos #cart .sum #bSave{min-height:48px}
+
 </style>
 </head>
 <body>
@@ -358,8 +446,20 @@ async function pDashboard(v) {
 async function pKasir(v) {
   S.barang = await api('list', { sheet: 'Barang' });
   S.nextNo = await api('nextNo');
-  v.innerHTML = `<div class="pos v${[1, 2, 3, 4, 5, 6].includes(+S.cfg.tampilan_kasir) ? +S.cfg.tampilan_kasir : 1}"><div class="card"><div class="bar"><input class="grow" id="q" placeholder="Cari nama, merek, ukuran, kode barang..."><select id="kat"><option value="">Semua kategori</option>${cats().map(c => `<option>${e(c)}</option>`).join('')}</select></div><div class="plist" id="plist"></div></div><div class="card" id="cart"></div></div>`;
-  $('#q').oninput = $('#kat').onchange = prodList; prodList(); cartRender(); $('#q').focus();
+  v.innerHTML = `<div class="pos modern-pos"><div class="card"><div class="bar"><input class="grow" id="q" placeholder="Cari barang atau scan barcode / kode barang..."><select id="kat"><option value="">Semua kategori</option>${cats().map(c => `<option>${e(c)}</option>`).join('')}</select></div><div class="scan-hint">Tip: scan barcode atau ketik kode barang lalu tekan Enter. Klik produk untuk menambahkan.</div><div class="plist" id="plist"></div></div><div class="card" id="cart"></div></div>`;
+  $('#q').oninput = $('#kat').onchange = prodList;
+  $('#q').onkeydown = ev => {
+    if (ev.key === 'Enter') {
+      ev.preventDefault();
+      const code = $('#q').value.trim().toLowerCase();
+      const exact = S.barang.find(b => b.Aktif !== 'N' && String(b.Kode || '').trim().toLowerCase() === code);
+      if (exact) {
+        if (exact.Kategori !== 'Jasa' && exact.Stok <= 0) toast('Stok barang habis', true);
+        else { addCart(exact.ID); $('#q').value = ''; prodList(); }
+      }
+    }
+  };
+  prodList(); cartRender(); $('#q').focus();
 }
 function prodList() {
   const q = $('#q').value.toLowerCase(), k = $('#kat').value;
