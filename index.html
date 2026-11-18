@@ -229,6 +229,48 @@ tbody tr:hover{background:#f8fafc}
 .modern-pos #cart .sum .row:nth-child(3) .tot{font-size:27px}
 .modern-pos #cart .sum #bSave{min-height:48px}
 
+
+/* POS layout inspired by the supplied reference image */
+.reference-pos{grid-template-columns:minmax(0,1fr) 330px;gap:12px;align-items:stretch}
+.reference-pos>.card:first-child{padding:12px;border-radius:11px;min-width:0}
+.reference-pos .bar{gap:8px;margin-bottom:10px}
+.reference-pos .bar input{min-height:38px;border-radius:8px}
+.reference-pos .bar select{display:none}
+.reference-pos .scan-hint{display:none}
+.reference-pos .category-strip{display:flex;gap:5px;overflow:auto;white-space:nowrap;padding:0 0 8px;margin-bottom:7px;scrollbar-width:thin}
+.reference-pos .category-strip button{border:1px solid #e2e8f0;background:#fff;border-radius:7px;padding:7px 12px;font-size:12px;cursor:pointer;color:#526171;flex:none}
+.reference-pos .category-strip button.active{background:#16a34a;border-color:#16a34a;color:white}
+.reference-pos .plist{grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;max-height:calc(100vh - 205px);padding:1px 3px 5px}
+.reference-pos .pi{padding:10px 9px;min-height:112px;border-radius:9px;display:flex;flex-direction:column;align-items:flex-start;gap:4px;text-align:left;background:#fff}
+.reference-pos .pi b{font-size:12.5px;line-height:1.25;max-height:2.5em;overflow:hidden}
+.reference-pos .pi small{font-size:10.5px;line-height:1.3}
+.reference-pos .pi .pr{font-size:13px;margin-top:auto;padding-top:5px;color:#16a34a;font-weight:700}
+.reference-pos .pi:hover{transform:none;border-color:#16a34a;box-shadow:0 2px 8px rgba(22,163,74,.12)}
+.reference-pos #cart{padding:12px 12px 14px;border-radius:11px;position:sticky;top:10px;height:calc(100vh - 100px);min-height:520px;display:flex;flex-direction:column;margin-bottom:0;overflow:hidden}
+.reference-pos #cart h3{font-size:16px;border-bottom:1px solid #edf1f5;padding-bottom:9px;margin-bottom:8px}
+.reference-pos #cart .cart-items{overflow:auto;flex:1;min-height:90px}
+.reference-pos #cart .ci{grid-template-columns:minmax(0,1fr) 42px 68px 22px;gap:4px;padding:8px 0;align-items:center}
+.reference-pos #cart .ci .dk{display:none}
+.reference-pos #cart .ci input{padding:4px 2px;font-size:11px;text-align:center}
+.reference-pos #cart .ci>div b{font-size:12px;display:block;line-height:1.25}
+.reference-pos #cart .ci small{font-size:10px}
+.reference-pos #cart .ci .x{font-size:15px;color:#dc2626;padding:0}
+.reference-pos #cart .sum{border-top:1px solid #edf1f5;padding-top:10px;margin-top:8px;gap:7px}
+.reference-pos #cart .sum .row{min-height:26px;font-size:12px}
+.reference-pos #cart .sum .row input,.reference-pos #cart .sum .row select{width:112px;padding:6px;font-size:11px}
+.reference-pos #cart .sum .row:nth-child(3) .tot{font-size:19px;color:#16a34a}
+.reference-pos #cart #pN,.reference-pos #cart .note[style*="text-align:right"]{display:none}
+.reference-pos #cart #pP,.reference-pos #cart #pM{width:100%;}
+.reference-pos #cart .pw{width:112px}
+.reference-pos #cart .pw input{width:100%!important}
+.reference-pos #cart #pC{font-size:11px;padding:7px;margin-top:2px}
+.reference-pos #cart #bSave{background:#16a34a;border-color:#16a34a;color:#fff;border-radius:8px;font-size:13px;min-height:42px}
+.reference-pos #cart #bSave:hover{background:#15803d}
+.reference-pos #cart .btn.d{font-size:11px;padding:6px}
+@media(max-width:1200px){.reference-pos{grid-template-columns:minmax(0,1fr) 300px}.reference-pos .plist{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:950px){.reference-pos{grid-template-columns:1fr}.reference-pos #cart{position:static;height:auto;min-height:0}.reference-pos .plist{max-height:45vh;grid-template-columns:repeat(4,minmax(0,1fr))}.reference-pos #cart .cart-items{max-height:250px}}
+@media(max-width:620px){.reference-pos .plist{grid-template-columns:repeat(2,minmax(0,1fr))}.reference-pos #cart .ci{grid-template-columns:minmax(0,1fr) 48px 70px 22px}}
+
 </style>
 </head>
 <body>
@@ -446,7 +488,7 @@ async function pDashboard(v) {
 async function pKasir(v) {
   S.barang = await api('list', { sheet: 'Barang' });
   S.nextNo = await api('nextNo');
-  v.innerHTML = `<div class="pos modern-pos"><div class="card"><div class="bar"><input class="grow" id="q" placeholder="Cari barang atau scan barcode / kode barang..."><select id="kat"><option value="">Semua kategori</option>${cats().map(c => `<option>${e(c)}</option>`).join('')}</select></div><div class="scan-hint">Tip: scan barcode atau ketik kode barang lalu tekan Enter. Klik produk untuk menambahkan.</div><div class="plist" id="plist"></div></div><div class="card" id="cart"></div></div>`;
+  v.innerHTML = `<div class="pos modern-pos reference-pos"><div class="card"><div class="bar"><input class="grow" id="q" placeholder="Cari barang atau scan barcode (tekan Enter)..."><button class="btn p" onclick="location.hash='barang'" title="Tambah barang baru">＋ Tambah</button><select id="kat"><option value="">Semua kategori</option>${cats().map(c => `<option>${e(c)}</option>`).join('')}</select></div><div class="category-strip" id="categoryStrip"></div><div class="plist" id="plist"></div></div><div class="card" id="cart"></div></div>`;
   $('#q').oninput = $('#kat').onchange = prodList;
   $('#q').onkeydown = ev => {
     if (ev.key === 'Enter') {
@@ -462,7 +504,8 @@ async function pKasir(v) {
   prodList(); cartRender(); $('#q').focus();
 }
 function prodList() {
-  const q = $('#q').value.toLowerCase(), k = $('#kat').value;
+  const q = $('#q').value.toLowerCase(), k = S.pos.catUI || '';
+  const strip = $('#categoryStrip'); if(strip){ const cc=[''].concat(cats()); strip.innerHTML=cc.map(c=>`<button class="${k===c?'active':''}" onclick="S.pos.catUI=${JSON.stringify(c)};prodList()">${c?e(c):'Semua Barang'}</button>`).join(''); }
   const L = S.barang.filter(b => b.Aktif !== 'N' && (!k || b.Kategori === k) && (b.Kode + b.Nama + b.Merek + b.Ukuran).toLowerCase().includes(q)).slice(0, 80);
   $('#plist').innerHTML = L.map(b => { const out = b.Kategori !== 'Jasa' && b.Stok <= 0; return `<button class="pi ${out ? 'out' : ''}" ${out ? 'disabled title="Stok habis"' : ''} onclick="addCart('${b.ID}')"><b>${e(b.Nama)}</b><small>${e([b.Merek, b.Ukuran].filter(Boolean).join(' · '))}</small><div class="pr">${rp(b.HargaJual)}</div><small>${b.Kategori === 'Jasa' ? 'Jasa' : (out ? 'Stok habis' : 'Stok: ' + b.Stok + ' ' + e(b.Satuan))}</small></button>`; }).join('') || '<p class="empty">Barang tidak ditemukan</p>';
 }
@@ -490,7 +533,7 @@ function cartCalc() {
 }
 function cartRender() {
   const p = S.pos, el = $('#cart'); if (!el) return;
-  el.innerHTML = `<h3>Keranjang</h3>${S.cart.length ? S.cart.map((c, i) => `<div class="ci"><div><b>${e(c.nama)}</b><small>${e(c.uk)}</small></div><input class="num" inputmode="numeric" value="${nf(c.qty)}" onchange="cartSet(${i},'qty',this.value)" title="Qty"><input class="num" inputmode="numeric" value="${nf(c.harga)}" onchange="cartSet(${i},'harga',this.value)" title="Harga satuan"><input class="dk num" inputmode="numeric" value="${nf(c.diskon)}" onchange="cartSet(${i},'diskon',this.value)" title="Diskon (Rp)" placeholder="Disk."><button class="x" onclick="S.cart.splice(${i},1);cartRender()" title="Hapus">×</button></div>`).join('') + '<p class="note" style="margin-top:6px">Kolom: Qty · Harga satuan · Diskon item (Rp)</p>' : '<p class="empty">Klik barang di sebelah kiri untuk menambah.</p>'}
+  el.innerHTML = `<h3>Keranjang <span class="bd ok">${S.cart.length} item</span></h3><div class="cart-items">${S.cart.length ? S.cart.map((c, i) => `<div class="ci"><div><b>${e(c.nama)}</b><small>${e(c.uk)}</small></div><input class="num" inputmode="numeric" value="${nf(c.qty)}" onchange="cartSet(${i},'qty',this.value)" title="Qty"><input class="num" inputmode="numeric" value="${nf(c.harga)}" onchange="cartSet(${i},'harga',this.value)" title="Harga satuan"><input class="dk num" inputmode="numeric" value="${nf(c.diskon)}" onchange="cartSet(${i},'diskon',this.value)" title="Diskon (Rp)" placeholder="Disk."><button class="x" onclick="S.cart.splice(${i},1);cartRender()" title="Hapus">×</button></div>`).join('') + '<p class="note" style="margin-top:6px">Kolom: Qty · Harga satuan · Diskon item (Rp)</p>' : '<p class="empty">Klik barang di katalog untuk menambahkan.</p>'}</div>
   <div class="sum"><div class="row"><span>Subtotal</span><b id="tSub"></b></div>
   <div class="row"><span>Diskon nota (Rp)</span><input class="num" inputmode="numeric" id="pD" value="${p.diskon || ''}" placeholder="0"></div>
   <div class="row"><span>Total</span><span class="tot" id="tTot"></span></div>
