@@ -17,6 +17,9 @@ button,input,select,textarea{font:inherit;color:inherit}
 :focus-visible{outline:2px solid var(--amb);outline-offset:2px}
 #busy{position:fixed;top:0;left:0;height:3px;width:0;background:var(--amb);z-index:99;transition:width .4s}
 #busy.on{width:80%}
+#ptr{position:fixed;top:0;left:50%;width:38px;height:38px;margin-left:-19px;border-radius:50%;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.25);display:grid;place-items:center;z-index:90;transform:translateY(-60px);opacity:0;pointer-events:none}
+#ptr svg{width:20px;height:20px;stroke:var(--pri);fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+#ptr.go svg{animation:sp .8s linear infinite}
 body.wait,body.wait *{cursor:progress!important}
 /* login */
 #login{min-height:100vh;display:none;place-items:center;padding:20px;background:linear-gradient(135deg,#1f2933 0 55%,#e9edf1 55%)}
@@ -146,6 +149,7 @@ html,body{overscroll-behavior-y:contain}
 </head>
 <body>
 <div id="busy"></div>
+<div id="ptr"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg></div>
 <div id="splash"><div class="tire spin"></div></div>
 <div id="scrim" onclick="toggleSide(false)"></div>
 
@@ -154,8 +158,8 @@ html,body{overscroll-behavior-y:contain}
   <form class="lbox" id="lform">
     <div class="logo"><div class="tire"></div><div><b>Menara Ban</b><small>Aplikasi Toko</small></div></div>
     <h2>Masuk</h2><p>Gunakan akun yang diberikan admin toko.</p>
-    <label class="f"><span>Username</span><input id="lu" autocomplete="username" required></label><br>
-    <label class="f"><span>Password</span><input id="lp" type="password" autocomplete="current-password" required></label><br>
+    <label class="f"><span>Username</span><input id="lu" autocomplete="off" required></label><br>
+    <label class="f"><span>Password</span><input id="lp" type="password" autocomplete="new-password" required></label><br>
     <button class="btn p" style="width:100%;padding:10px" id="lbtn">Masuk</button>
   </form>
 </section>
@@ -272,12 +276,18 @@ function csv(name, heads, rows) {
 /* ============ AUTH & BOOT ============ */
 $('#lform').onsubmit = async ev => {
   ev.preventDefault(); const b = $('#lbtn'); b.disabled = true; b.textContent = 'Memeriksa...';
-  try { const r = await api('login', { username: $('#lu').value, password: $('#lp').value }); S.token = r.token; localStorage.setItem('mb_token', r.token); await boot(); }
-  catch (x) { fail(x); }
-  b.disabled = false; b.textContent = 'Masuk';
-};
+   try {
+    const r = await api('login', { username: $('#lu').value, password: $('#lp').value });
+    S.token = r.token; localStorage.setItem('mb_token', r.token);
+    localStorage.setItem('mb_page', 'dashboard'); history.replaceState(null, '', '#dashboard');
+    $('#lu').value = ''; $('#lp').value = '';
+    await boot();
+  };
 function logout(silent) {
-  localStorage.removeItem('mb_token'); S.token = ''; S.user = null;
+  localStorage.removeItem('mb_token'); localStorage.removeItem('mb_page');
+  S.token = ''; S.user = null;
+  if (!silent) { S.cart = []; S.pos = {}; }
+  $('#lu').value = ''; $('#lp').value = '';
   $('#app').style.display = 'none'; $('#splash').style.display = 'none'; $('#login').style.display = 'grid';
   if (silent) toast('Sesi berakhir, silakan login ulang', true);
 }
@@ -799,6 +809,36 @@ async function pReturBeli(v) {
 }
 
 /* ============ START ============ */
+/* ============ TARIK UNTUK REFRESH ============ */
+(function () {
+  const el = $('#ptr'), TH = 60; let y0 = 0, dy = 0, on = false, busy = false;
+  const canStart = t => {
+    if (busy || !S.user || window.scrollY > 0) return false;
+    if ($('#modal').classList.contains('on') || $('#side').classList.contains('on')) return false;
+    for (let n = t; n && n !== document.body; n = n.parentElement) if (n.scrollTop > 0) return false;
+    return true;
+  };
+  const pos = (d, anim) => {
+    el.style.transition = anim ? 'transform .2s,opacity .2s' : 'none';
+    el.style.transform = `translateY(${d - 60}px) rotate(${d * 4}deg)`;
+    el.style.opacity = Math.min(1, d / TH);
+  };
+  addEventListener('touchstart', ev => {
+    on = ev.touches.length === 1 && canStart(ev.target);
+    if (on) { y0 = ev.touches[0].clientY; dy = 0; }
+  }, { passive: true });
+  addEventListener('touchmove', ev => {
+    if (!on) return;
+    dy = Math.max(0, Math.min((ev.touches[0].clientY - y0) * 0.5, 110));
+    pos(dy);
+  }, { passive: true });
+  addEventListener('touchend', async () => {
+    if (!on) return; on = false;
+    if (dy < TH) return pos(0, true);
+    busy = true; el.classList.add('go'); pos(50, true);
+    try { await route(); } finally { el.classList.remove('go'); pos(0, true); busy = false; }
+  });
+})();
 boot();
 </script>
 </body>
