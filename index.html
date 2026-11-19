@@ -17,6 +17,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 :focus-visible{outline:2px solid var(--amb);outline-offset:2px}
 #busy{position:fixed;top:0;left:0;height:3px;width:0;background:var(--amb);z-index:99;transition:width .4s}
 #busy.on{width:80%}
+body.wait,body.wait *{cursor:progress!important}
 /* login */
 #login{min-height:100vh;display:none;place-items:center;padding:20px;background:linear-gradient(135deg,#1f2933 0 55%,#e9edf1 55%)}
 .lbox{background:#fff;width:100%;max-width:380px;border-radius:14px;padding:32px 28px;box-shadow:0 20px 50px rgba(15,25,35,.25)}
@@ -356,10 +357,12 @@ async function pDashboard(v) {
 
 /* ============ KASIR ============ */
 async function pKasir(v) {
-  S.barang = await api('list', { sheet: 'Barang' });
-  S.nextNo = await api('nextNo');
   v.innerHTML = `<div class="pos v${[1, 2, 3, 4, 5, 6].includes(+S.cfg.tampilan_kasir) ? +S.cfg.tampilan_kasir : 1}"><div class="card"><div class="bar"><input class="grow" id="q" placeholder="Cari nama, merek, ukuran, kode barang..."><select id="kat"><option value="">Semua kategori</option>${cats().map(c => `<option>${e(c)}</option>`).join('')}</select></div><div class="plist" id="plist"></div></div><div class="card" id="cart"></div></div>`;
   $('#q').oninput = $('#kat').onchange = prodList; prodList(); cartRender(); $('#q').focus();
+  api('kasirInit').then(r => {
+    S.barang = r.barang; S.pelanggan = r.pelanggan; S.nextNo = r.nextNo;
+    if ($('#plist')) { prodList(); if (!S.pos.noManual && $('#pN')) $('#pN').value = S.nextNo; }
+  }).catch(() => {});
 }
 function prodList() {
   const q = $('#q').value.toLowerCase(), k = $('#kat').value;
@@ -409,16 +412,19 @@ function cartRender() {
 }
 function noAuto() { S.pos.noManual = false; S.pos.no = ''; cartRender(); }
 function newCust() {
-  formModal('Pelanggan Baru', CUST_F, {}, async o => { await api('save', { sheet: 'Pelanggan', row: o }); S.pelanggan = await api('list', { sheet: 'Pelanggan' }); S.pos.pel = o.Nama; cartRender(); });
+  formModal('Pelanggan Baru', CUST_F, {}, async o => {
+    const r = await api('save', { sheet: 'Pelanggan', row: o });
+    S.pelanggan.push(Object.assign({}, o, { ID: r.ID })); S.pos.pel = o.Nama; cartRender();
+  });
 }
 async function saleSave() {
   const t = cartTotals(), p = S.pos;
   if (t.bayar < t.total && (!p.pel || p.pel === 'Umum')) return toast('Piutang wajib memilih pelanggan (bukan Umum)', true);
   $('#bSave').disabled = true;
   try {
-    const r = await api('saveSale', { items: S.cart.map(c => ({ id: c.id, nama: c.nama, qty: c.qty, harga: c.harga, diskon: c.diskon })), diskon: unf(p.diskon), bayar: t.bayar, no: p.noManual ? String(p.no || '').trim() : '', pelanggan: p.pel || 'Umum', metode: p.metode || 'Tunai', catatan: p.cat || '' });
     toast('Transaksi ' + r.sale.No + ' tersimpan');
-    S.cart = []; S.pos = {}; S.barang = await api('list', { sheet: 'Barang' }); S.nextNo = await api('nextNo'); prodList(); cartRender();
+    S.cart.forEach(c => { if (!c.jasa) { const b = S.barang.find(x => x.ID === c.id); if (b) b.Stok -= c.qty; } });
+    S.cart = []; S.pos = {}; S.nextNo = r.nextNo; prodList(); cartRender();
   } catch (x) { fail(x); $('#bSave').disabled = false; }
 }
 const RC_CSS = '.rc{font:12px/1.4 monospace;width:290px;margin:0 auto;padding:12px;background:#fff;color:#000}.rc hr{border:0;border-top:1px dashed #000;margin:6px 0}.rc h3,.rc p{margin:2px 0;text-align:center}.rc .l{display:flex;justify-content:space-between;gap:8px}body{margin:0}';
@@ -457,6 +463,11 @@ async function pPenjualan(v) {
   v.innerHTML = rangeBar('pj') + '<div id="pjR"></div>';
   const load = async () => {
     const r = await api('list', { sheet: 'Penjualan', from: $('#pjF').value, to: $('#pjT').value }); r.reverse();
+     window.strukLama = async id => {
+    const s = (window._pj || []).find(x => x.ID === id);
+    const d = (await api('list', { sheet: 'DetailPenjualan', from: s.Tanggal, to: s.Tanggal })).filter(x => x.NoNota === s.No);
+    strukModal(s, d);
+  };
     const ok = r.filter(x => x.Batal !== 'Y');
     $('#pjR').innerHTML = tbl(['No', 'Tanggal', 'Pelanggan', 'Total', 'Bayar', 'Status', 'Kasir', ''], r.map(x => [x.No, tglID(x.Tanggal) + ' ' + x.Waktu, x.Pelanggan, x.Total, x.Bayar, H(badge(x.Status)),
       x.Kasir, H(`<button class="btn s" onclick="strukLama('${x.ID}')">Struk</button>${x.Status === 'Piutang' ? `<button class="btn s p" onclick="lunasi('jual','${x.ID}',${x.Total - x.Bayar},load_pj)">Bayar</button>` : ''}${isAdmin() && x.Batal !== 'Y' ? `<button class="btn s" onclick="returForm('${x.ID}',load_pj)">Retur</button><button class="btn s d" onclick="batal('jual','${x.ID}',load_pj)">Batal</button>` : ''}`)].map((c, i) => i === 7 ? { h: c.h, c: 'act' } : c)),
