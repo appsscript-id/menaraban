@@ -145,6 +145,18 @@ html,body{overscroll-behavior-y:contain}
 }
 @media print{aside,.top,.bar,.tabs,#burger,.noprint{display:none!important}main{margin:0;padding:0}.card{border:0}body{background:#fff}.ph{display:block!important}}
 .ph{display:none;margin-bottom:10px}
+.cards{display:none}
+.rcard{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.rcard>b{display:block;font:700 17px 'Barlow Semi Condensed';margin-bottom:6px}
+.rcard .kv{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px}
+.rcard .kv div{min-width:0}
+.rcard .kv small{display:block;color:var(--mut);font-size:11.5px}
+.rcard .kv span{font-weight:500;overflow-wrap:anywhere}
+.rcard .ca{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
+.rcard .ca .btn{padding:7px 12px;font-size:13px;margin:0}
+.rcard.ft{background:#f6f8fa;font-weight:700}
+@media(max-width:700px){.tw.hasc{display:none}.cards{display:grid;gap:10px}}
+@media print{.cards{display:none!important}.tw.hasc{display:block!important}}
 </style>
 </head>
 <body>
@@ -261,7 +273,17 @@ function formModal(title, fields, row, onSave) {
 
 function tbl(heads, rows, foot) {
   const cell = c => (c && typeof c === 'object' && 'h' in c) ? `<td${c.c ? ` class="${c.c}"` : ''}>${c.h}</td>` : typeof c === 'number' ? `<td class="r">${nf(c)}</td>` : `<td>${e(c)}</td>`;
-  return `<div class="tw"><table><thead><tr>${heads.map(h => `<th class="${/^(Harga|Total|Qty|Stok|Jumlah|Sisa|Subtotal|Bayar|Nilai|Laba|Diskon|HPP|Kurang|Kembali|Potong|Uang|Modal|Seharusnya|Hitung|Selisih|Pelunasan|PPN|DPP)/.test(h) ? 'r' : ''}">${h}</th>`).join('')}</tr></thead><tbody>${rows.length ? rows.map(r => `<tr>${r.map(cell).join('')}</tr>`).join('') : `<tr><td class="empty" colspan="${heads.length}">Belum ada data</td></tr>`}</tbody>${foot ? `<tfoot><tr>${foot.map(cell).join('')}</tr></tfoot>` : ''}</table></div>`;
+  const txt = c => (c && typeof c === 'object' && 'h' in c) ? c.h : typeof c === 'number' ? nf(c) : e(c);
+  const n = heads.length, cardOn = n >= 4, hasAct = heads[n - 1] === '';
+  const ti = Math.max(0, heads.findIndex(h => /^(Nama|Barang|Produk)$/.test(h)));
+  const card = (r, ft) => {
+    const act = hasAct && !ft;
+    const body = r.map((c, i) => (i === ti || (act && i === n - 1) || c === '' || c == null) ? '' : `<div><small>${heads[i]}</small><span>${txt(c)}</span></div>`).join('');
+    return `<div class="rcard${ft ? ' ft' : ''}"><b>${txt(r[ti]) || txt(r[0])}</b><div class="kv">${body}</div>${act ? `<div class="ca">${txt(r[n - 1])}</div>` : ''}</div>`;
+  };
+  const table = `<div class="tw${cardOn ? ' hasc' : ''}"><table><thead><tr>${heads.map(h => `<th class="${/^(Harga|Total|Qty|Stok|Jumlah|Sisa|Subtotal|Bayar|Nilai|Laba|Diskon|HPP|Kurang|Kembali|Potong|Uang|Modal|Seharusnya|Hitung|Selisih|Pelunasan|PPN|DPP)/.test(h) ? 'r' : ''}">${h}</th>`).join('')}</tr></thead><tbody>${rows.length ? rows.map(r => `<tr>${r.map(cell).join('')}</tr>`).join('') : `<tr><td class="empty" colspan="${n}">Belum ada data</td></tr>`}</tbody>${foot ? `<tfoot><tr>${foot.map(cell).join('')}</tr></tfoot>` : ''}</table></div>`;
+  if (!cardOn) return table;
+  return table + `<div class="cards">${rows.length ? rows.map(r => card(r)).join('') : '<div class="empty">Belum ada data</div>'}${foot ? card(foot, true) : ''}</div>`;
 }
 const badge = s => `<span class="bd ${{ Lunas: 'ok', Piutang: 'bad', Hutang: 'bad', Batal: 'warn' }[s] || ''}">${e(s)}</span>`;
 const sum = (a, k) => a.reduce((p, c) => p + (+c[k] || 0), 0);
@@ -519,20 +541,26 @@ async function beliForm(done) {
   S.supplier = await api('list', { sheet: 'Supplier' });
   const items = S.barang.filter(b => b.Kategori !== 'Jasa' && b.Aktif !== 'N');
   if (!items.length) return toast('Tambahkan data barang terlebih dahulu', true);
-  const rowH = () => `<tr><td><select class="bi">${items.map(b => `<option value="${b.ID}" data-h="${b.HargaBeli}">${e(b.Nama + ' ' + b.Ukuran + ' (' + b.Stok + ')')}</option>`).join('')}</select></td><td><input class="bq num" inputmode="numeric" value="1" style="width:70px"></td><td><input class="bh num" inputmode="numeric" value="${nf(items[0].HargaBeli)}" style="width:110px"></td><td class="r bs">0</td><td><button class="btn s d" onclick="this.closest('tr').remove();beliCalc()">×</button></td></tr>`;
-  const m = modal('Pembelian Baru', `<div class="fg"><label class="f"><span>Tanggal</span><input type="date" id="bT" value="${today()}"></label><label class="f"><span>Supplier</span><input id="bS" list="supl" placeholder="Pilih / ketik nama"><datalist id="supl">${S.supplier.map(s => `<option value="${e(s.Nama)}">`).join('')}</datalist></label></div><br>
+  const lbl = b => b.Kode + ' · ' + b.Nama + (b.Ukuran ? ' ' + b.Ukuran : '') + ' (stok ' + b.Stok + ')';
+  const byL = {}; items.forEach(b => byL[lbl(b)] = b);
+  const rowH = () => `<tr><td><input class="bi" list="bl" placeholder="Ketik untuk cari barang" autocomplete="off" style="min-width:200px"></td><td><input class="bq num" inputmode="numeric" value="1" style="width:70px"></td><td><input class="bh num" inputmode="numeric" value="" placeholder="0" style="width:110px"></td><td class="r bs">0</td><td><button class="btn s d" onclick="this.closest('tr').remove();beliCalc()">×</button></td></tr>`;
+  const m = modal('Pembelian Baru', `<div class="fg"><label class="f"><span>Tanggal</span><input type="date" id="bT" value="${today()}"></label><label class="f"><span>Supplier</span><input id="bS" list="supl" placeholder="Pilih / ketik nama"><datalist id="supl">${S.supplier.map(s => `<option value="${e(s.Nama)}">`).join('')}</datalist></label></div><datalist id="bl">${items.map(b => `<option value="${e(lbl(b))}">`).join('')}</datalist><br>
   <div class="tw"><table><thead><tr><th>Barang</th><th>Qty</th><th>Harga beli</th><th class="r">Subtotal</th><th></th></tr></thead><tbody id="bRows">${rowH()}</tbody></table></div>
   <button class="btn s" style="margin-top:8px" id="bAdd">+ Tambah baris</button>
   <div class="fg" style="margin-top:14px"><label class="f"><span>PPN</span><select id="bP"><option value="none">Tanpa PPN</option><option value="exclude">Harga belum termasuk PPN (+${ppnRate()}%)</option><option value="include">Harga sudah termasuk PPN (${ppnRate()}%)</option></select></label><label class="f"><span>Dibayar (Rp) - kosong = lunas</span><input class="num" inputmode="numeric" id="bB"></label></div>
   <div style="margin-top:12px;text-align:right"><div class="note">Subtotal: <b id="bSub">Rp 0</b> &nbsp;·&nbsp; PPN: <b id="bPpn">Rp 0</b></div><div>Total: <b class="tot" id="bTot">Rp 0</b></div></div>`, async () => {
-    const its = [...document.querySelectorAll('#bRows tr')].map(r => ({ id: r.querySelector('.bi').value, qty: unf(r.querySelector('.bq').value), harga: unf(r.querySelector('.bh').value) }));
+    const its = [...document.querySelectorAll('#bRows tr')].map(r => {
+      const b = byL[r.querySelector('.bi').value];
+      if (!b) throw new Error('Pilih barang dari daftar pada setiap baris');
+      return { id: b.ID, qty: unf(r.querySelector('.bq').value), harga: unf(r.querySelector('.bh').value) };
+    });
     const tot = ppnCalc(its.reduce((p, c) => p + c.qty * c.harga, 0), $('#bP').value).total, b = $('#bB').value;
     await api('savePurchase', { tanggal: $('#bT').value, supplier: $('#bS').value, items: its, ppn: $('#bP').value, bayar: b === '' ? tot : unf(b) });
     toast('Pembelian tersimpan, stok bertambah'); done();
   }, 'Simpan Pembelian', true);
   window.beliCalc = () => { let t = 0; document.querySelectorAll('#bRows tr').forEach(r => { const s = unf(r.querySelector('.bq').value) * unf(r.querySelector('.bh').value); r.querySelector('.bs').textContent = nf(s); t += s; }); const pc = ppnCalc(t, $('#bP').value); $('#bSub').textContent = rp(t); $('#bPpn').textContent = rp(pc.ppn); $('#bTot').textContent = rp(pc.total); };
   const bind = () => document.querySelectorAll('#bRows tr').forEach(r => {
-    r.querySelector('.bi').onchange = ev => { r.querySelector('.bh').value = nf(ev.target.selectedOptions[0].dataset.h); beliCalc(); };
+    r.querySelector('.bi').oninput = ev => { const b = byL[ev.target.value]; if (b) r.querySelector('.bh').value = nf(b.HargaBeli); beliCalc(); };
     r.querySelector('.bq').oninput = r.querySelector('.bh').oninput = beliCalc;
   });
   $('#bAdd').onclick = () => { $('#bRows').insertAdjacentHTML('beforeend', rowH()); bind(); beliCalc(); };
