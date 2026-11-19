@@ -157,6 +157,8 @@ html,body{overscroll-behavior-y:contain}
 .rcard.ft{background:#f6f8fa;font-weight:700}
 @media(max-width:700px){.tw.hasc{display:none}.cards{display:grid;gap:10px}}
 @media print{.cards{display:none!important}.tw.hasc{display:block!important}}
+.more{text-align:center;margin:12px 0}
+@media print{.more{display:none!important}}
 </style>
 </head>
 <body>
@@ -271,7 +273,8 @@ function formModal(title, fields, row, onSave) {
   });
 }
 
-function tbl(heads, rows, foot) {
+const PG = 40, _pg = {}; let _pgN = 0;
+function tbl(heads, rows, foot, all) {
   const cell = c => (c && typeof c === 'object' && 'h' in c) ? `<td${c.c ? ` class="${c.c}"` : ''}>${c.h}</td>` : typeof c === 'number' ? `<td class="r">${nf(c)}</td>` : `<td>${e(c)}</td>`;
   const txt = c => (c && typeof c === 'object' && 'h' in c) ? c.h : typeof c === 'number' ? nf(c) : e(c);
   const n = heads.length, cardOn = n >= 4, hasAct = heads[n - 1] === '';
@@ -281,9 +284,28 @@ function tbl(heads, rows, foot) {
     const body = r.map((c, i) => (i === ti || (act && i === n - 1) || c === '' || c == null) ? '' : `<div><small>${heads[i]}</small><span>${txt(c)}</span></div>`).join('');
     return `<div class="rcard${ft ? ' ft' : ''}"><b>${txt(r[ti]) || txt(r[0])}</b><div class="kv">${body}</div>${act ? `<div class="ca">${txt(r[n - 1])}</div>` : ''}</div>`;
   };
-  const table = `<div class="tw${cardOn ? ' hasc' : ''}"><table><thead><tr>${heads.map(h => `<th class="${/^(Harga|Total|Qty|Stok|Jumlah|Sisa|Subtotal|Bayar|Nilai|Laba|Diskon|HPP|Kurang|Kembali|Potong|Uang|Modal|Seharusnya|Hitung|Selisih|Pelunasan|PPN|DPP)/.test(h) ? 'r' : ''}">${h}</th>`).join('')}</tr></thead><tbody>${rows.length ? rows.map(r => `<tr>${r.map(cell).join('')}</tr>`).join('') : `<tr><td class="empty" colspan="${n}">Belum ada data</td></tr>`}</tbody>${foot ? `<tfoot><tr>${foot.map(cell).join('')}</tr></tfoot>` : ''}</table></div>`;
-  if (!cardOn) return table;
-  return table + `<div class="cards">${rows.length ? rows.map(r => card(r)).join('') : '<div class="empty">Belum ada data</div>'}${foot ? card(foot, true) : ''}</div>`;
+  const id = ++_pgN, lim = all ? rows.length : PG;
+  const trs = rows.map(r => `<tr>${r.map(cell).join('')}</tr>`);
+  const crd = cardOn ? rows.map(r => card(r)) : [];
+  delete _pg[id - 30];
+  _pg[id] = { trs, crd, shown: lim };
+  const table = `<div class="tw${cardOn ? ' hasc' : ''}"><table><thead><tr>${heads.map(h => `<th class="${/^(Harga|Total|Qty|Stok|Jumlah|Sisa|Subtotal|Bayar|Nilai|Laba|Diskon|HPP|Kurang|Kembali|Potong|Uang|Modal|Seharusnya|Hitung|Selisih|Pelunasan|PPN|DPP)/.test(h) ? 'r' : ''}">${h}</th>`).join('')}</tr></thead><tbody id="tb${id}">${rows.length ? trs.slice(0, lim).join('') : `<tr><td class="empty" colspan="${n}">Belum ada data</td></tr>`}</tbody>${foot ? `<tfoot><tr>${foot.map(cell).join('')}</tr></tfoot>` : ''}</table></div>`;
+  const cards = cardOn ? `<div class="cards" id="cd${id}">${rows.length ? crd.slice(0, lim).join('') : '<div class="empty">Belum ada data</div>'}${foot ? card(foot, true).replace('class="rcard ft"', 'class="rcard ft" id="cf' + id + '"') : ''}</div>` : '';
+  const more = rows.length > lim ? `<div class="more" id="mo${id}"><button class="btn" onclick="pgMore(${id})">Muat lebih banyak (${rows.length - lim} lagi)</button></div>` : '';
+  return table + cards + more;
+}
+function pgMore(id) {
+  const p = _pg[id]; if (!p) return;
+  const a = p.shown, b = Math.min(a + PG, p.trs.length);
+  $('#tb' + id).insertAdjacentHTML('beforeend', p.trs.slice(a, b).join(''));
+  const cd = $('#cd' + id);
+  if (cd && p.crd.length) {
+    const h = p.crd.slice(a, b).join(''), f = $('#cf' + id);
+    if (f) f.insertAdjacentHTML('beforebegin', h); else cd.insertAdjacentHTML('beforeend', h);
+  }
+  p.shown = b;
+  const mo = $('#mo' + id);
+  if (b >= p.trs.length) mo.remove(); else mo.firstChild.textContent = `Muat lebih banyak (${p.trs.length - b} lagi)`;
 }
 const badge = s => `<span class="bd ${{ Lunas: 'ok', Piutang: 'bad', Hutang: 'bad', Batal: 'warn' }[s] || ''}">${e(s)}</span>`;
 const sum = (a, k) => a.reduce((p, c) => p + (+c[k] || 0), 0);
@@ -577,13 +599,16 @@ async function crud(v, cfg) {
     const q = $('#cq').value.toLowerCase(), L = rows.filter(r => Object.values(r).join(' ').toLowerCase().includes(q)).slice().reverse();
     $('#cInfo').textContent = L.length + ' data';
     $('#cT').innerHTML = tbl([...cfg.cols.map(c => c[0]), ''], L.map(r => [...cfg.cols.map(c => c[1](r)), { h: (cfg.extra ? cfg.extra(r) : '') + (canEdit ? `<button class="btn s" data-e="${r.ID}">Ubah</button>` : '') + (A ? `<button class="btn s d" data-d="${r.ID}">Hapus</button>` : ''), c: 'act' }]));
-    document.querySelectorAll('[data-e]').forEach(b => b.onclick = () => formModal('Ubah ' + cfg.name, cfg.fields, rows.find(x => x.ID === b.dataset.e), save));
-    document.querySelectorAll('[data-d]').forEach(b => b.onclick = () => confirmBox('Hapus data ini?', async () => { await api('del', { sheet: cfg.sheet, id: b.dataset.d }); toast('Data dihapus'); reload(); }));
-  };
+    };
   const save = async o => { await api('save', { sheet: cfg.sheet, row: o }); toast('Data tersimpan'); reload(); };
   const reload = () => crud(v, cfg);
   window['reload_' + cfg.sheet] = reload;
   $('#cq').oninput = draw; draw();
+   $('#cT').onclick = ev => {
+    const b = ev.target.closest('[data-e],[data-d]'); if (!b) return;
+    if (b.dataset.e) formModal('Ubah ' + cfg.name, cfg.fields, rows.find(x => x.ID === b.dataset.e), save);
+    else confirmBox('Hapus data ini?', async () => { await api('del', { sheet: cfg.sheet, id: b.dataset.d }); toast('Data dihapus'); reload(); });
+  };
   if ($('#cAdd')) $('#cAdd').onclick = () => formModal('Tambah ' + cfg.name, cfg.fields, cfg.def ? cfg.def() : {}, save);
   if ($('#cCsv')) $('#cCsv').onclick = () => csv(cfg.sheet, cfg.cols.map(c => c[0]), rows.map(r => cfg.cols.map(c => { const x = c[1](r); return x && x.h !== undefined ? x.h.replace(/<[^>]+>/g, '') : x; })));
 }
@@ -662,7 +687,7 @@ async function pLaporan(v) {
       foot = ['TOTAL PPN MASUKAN', '', '', rows.reduce((p, c) => p + c[3], 0), rows.reduce((p, c) => p + c[4], 0)];
     }
     cur = { heads, rows, name: 'laporan-' + TABS[tab].replace(/\W+/g, '-').toLowerCase() };
-    $('#lpR').innerHTML = `<h3>${TABS[tab]}</h3><p class="note" style="margin-bottom:10px">${tab === 4 ? 'Posisi stok saat ini' : per}</p>` + tbl(heads, rows, foot);
+    $('#lpR').innerHTML = `<h3>${TABS[tab]}</h3><p class="note" style="margin-bottom:10px">${tab === 4 ? 'Posisi stok saat ini' : per}</p>` + tbl(heads, rows, foot, true);;
   };
   const load = async () => { D = await api('report', { from: $('#lpF').value, to: $('#lpT').value }); draw(); };
   $('#lpGo').onclick = load; $('#lpCsv').onclick = () => cur && csv(cur.name, cur.heads, cur.rows); draw(); load();
