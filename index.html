@@ -166,6 +166,64 @@ details.acc>summary::after{content:'';flex:none;width:8px;height:8px;border-righ
 details.acc[open]>summary::after{transform:rotate(-135deg)}
 details.acc[open]>summary{border-bottom:1px solid var(--line)}
 details.acc>.accb{padding:14px 18px 18px}
+/* ===== DASHBOARD PROFESIONAL: tempel di dalam <style>, tepat sebelum </style> ===== */
+.db-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+.db-head h2{font-size:24px;line-height:1.15}
+.db-head p{color:var(--mut);margin-top:2px}
+.db-act{display:flex;gap:8px;flex-wrap:wrap}
+.db-kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin-bottom:16px}
+.db-k{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;gap:14px;align-items:center;box-shadow:0 1px 2px rgba(16,24,40,.05)}
+.db-ic{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;flex:none;background:#e6f0f7;color:var(--pri)}
+.db-ic svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.db-k.a .db-ic{background:#fdf0d5;color:var(--warn)}
+.db-k.g .db-ic{background:#dff3e7;color:var(--ok)}
+.db-k.r .db-ic{background:#fbe3e3;color:var(--bad)}
+.db-k small{color:var(--mut);font-size:12.5px;display:block}
+.db-k b{font:700 23px 'Barlow Semi Condensed';display:block;line-height:1.2;margin:1px 0}
+.db-k i{font-style:normal;color:var(--mut);font-size:12px}
+.db-d{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:20px;font-size:11.5px;font-weight:600}
+.db-d.up{background:#dff3e7;color:var(--ok)}.db-d.dn{background:#fbe3e3;color:var(--bad)}
+.db-grid{display:grid;grid-template-columns:1.6fr 1fr;gap:16px;margin-bottom:16px}
+.db-grid .card{margin-bottom:0}
+.db-ch{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:12px}
+.db-ch h3{margin:0}.db-ch span,.db-ch a{color:var(--mut);font-size:12.5px}
+.db-ch a{color:var(--pri);cursor:pointer;font-weight:600;text-decoration:none}
+.db-chart{display:flex;align-items:flex-end;gap:clamp(6px,2vw,18px);height:210px;padding:0 4px 0 0;background:repeating-linear-gradient(to top,var(--line) 0 1px,transparent 1px 25%)}
+.db-col{flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;min-width:0}
+.db-col em{font-style:normal;font-size:11px;font-weight:600;color:var(--ink2);margin-bottom:4px;white-space:nowrap}
+.db-col u{display:block;width:100%;max-width:48px;border-radius:6px 6px 0 0;background:#9dc3dd;min-height:3px;text-decoration:none;transition:filter .15s}
+.db-col:hover u{filter:brightness(.9)}
+.db-col.now u{background:var(--pri)}
+.db-axis{display:flex;gap:clamp(6px,2vw,18px);margin-top:6px;padding-right:4px}
+.db-axis div{flex:1;text-align:center;font-size:11.5px;color:var(--mut);line-height:1.25}
+.db-axis div.now{color:var(--ink);font-weight:600}
+.db-sum{display:flex;gap:18px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px dashed var(--line);font-size:13px;color:var(--mut)}
+.db-sum b{color:var(--ink)}
+.db-rank{display:grid;gap:14px}
+.db-ri{display:grid;grid-template-columns:26px 1fr auto;gap:10px;align-items:center}
+.db-ri .n{width:26px;height:26px;border-radius:50%;background:#eef1f4;font-size:12px;font-weight:600;display:grid;place-items:center}
+.db-ri.f .n{background:var(--amb)}
+.db-ri .t{min-width:0}
+.db-ri .t b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.db-ri .t small{color:var(--mut)}
+.db-ri .v{font-weight:600;font-variant-numeric:tabular-nums;text-align:right}
+.db-bar{height:6px;background:#eef1f4;border-radius:6px;margin-top:5px;overflow:hidden}
+.db-bar i{display:block;height:100%;border-radius:6px;background:var(--pri)}
+.db-bar.bad i{background:var(--bad)}.db-bar.warn i{background:var(--amb)}
+.db-fin{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.db-fin div{background:#f6f8fa;border-radius:10px;padding:12px 14px}
+.db-fin small{color:var(--mut);display:block}
+.db-fin b{font:700 19px 'Barlow Semi Condensed'}
+.db-ok{display:flex;align-items:center;gap:8px;color:var(--ok);font-weight:500;padding:10px 0}
+@media(max-width:900px){
+ .db-grid{grid-template-columns:1fr}
+ .db-kpi{grid-template-columns:1fr 1fr;gap:10px}
+ .db-k{flex-direction:column;align-items:flex-start;gap:10px;padding:14px}
+ .db-k b{font-size:19px}
+ .db-head h2{font-size:21px}
+ .db-act{width:100%}.db-act .btn{flex:1}
+ .db-chart{height:170px}
+}
 </style>
 </head>
 <body>
@@ -403,19 +461,74 @@ async function route() {
 window.onhashchange = route;
 
 /* ============ DASHBOARD ============ */
+/* ===== DASHBOARD PROFESIONAL: ganti seluruh fungsi pDashboard lama (dari "async function pDashboard" sampai sebelum "/* ====== KASIR") ===== */
 async function pDashboard(v) {
-  const d = await api('dashboard'), mx = Math.max(...d.seri.map(x => x.total), 1), A = isAdmin();
-  const hr = t => ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'][new Date(t + 'T00:00:00').getDay()];
-  v.innerHTML = `<div class="stats">
-    <div class="st"><small>Omzet hari ini</small><b>${rp(d.omzetHari)}</b><i>${d.trxHari} transaksi</i></div>
-    <div class="st a"><small>Omzet bulan ini</small><b>${rp(d.omzetBulan)}</b><i>${d.trxBulan} transaksi</i></div>
-    ${A ? `<div class="st g"><small>Laba bersih bulan ini</small><b>${rp(d.labaBulan)}</b><i>setelah biaya ${rp(d.biayaBulan)}</i></div>
-    <div class="st r"><small>Piutang pelanggan</small><b>${rp(d.piutang)}</b><i>Hutang supplier ${rp(d.hutang)}</i></div>
-    <div class="st"><small>Nilai persediaan</small><b>${rp(d.nilaiStok)}</b><i>harga beli</i></div>` : ''}
-    <div class="st ${d.jmlMenipis ? 'r' : 'g'}"><small>Stok menipis</small><b>${d.jmlMenipis} barang</b><i>di bawah batas minimum</i></div></div>
-    <div class="grid2"><div class="card"><h3>Penjualan 7 hari terakhir</h3><div class="bars">${d.seri.map(x => `<div><span>${x.total ? nf(Math.round(x.total / 1000)) + 'rb' : ''}</span><i style="height:${Math.max(2, x.total / mx * 100)}%"></i>${hr(x.tgl)}<br>${x.tgl.slice(8)}</div>`).join('')}</div></div>
-    <div class="card"><h3>Perlu restok</h3>${d.stokMenipis.length ? tbl(['Barang', 'Stok', 'Min'], d.stokMenipis.map(b => [b.Nama + ' ' + b.Ukuran, H(`<span class="bd bad">${b.Stok}</span>`), b.StokMin])) : '<p class="note">Semua stok aman.</p>'}</div></div>
-    <div class="card"><h3>Produk terlaris bulan ini</h3>${tbl(['Produk', 'Qty terjual'], d.top.map(t => [t.nama, t.qty]))}</div>`;
+  const d = await api('dashboard'), A = isAdmin();
+  const seri = d.seri || [], mx = Math.max(...seri.map(x => x.total), 1);
+  const HARI = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+  const BLN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+  const now = new Date(), jam = now.getHours();
+  const sapa = jam < 11 ? 'Selamat pagi' : jam < 15 ? 'Selamat siang' : jam < 18 ? 'Selamat sore' : 'Selamat malam';
+  const hr = t => HARI[new Date(t + 'T00:00:00').getDay()].slice(0, 3);
+  const short = n => n >= 1e6 ? (n / 1e6).toLocaleString('id-ID', { maximumFractionDigits: 1 }) + 'jt' : n >= 1000 ? nf(Math.round(n / 1000)) + 'rb' : n ? nf(n) : '';
+  const ico = p => `<span class="db-ic"><svg viewBox="0 0 24 24">${p}</svg></span>`;
+  const WARN = '<path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01"/>';
+  const K = (cls, ic, label, val, sub) => `<div class="db-k ${cls}">${ico(ic)}<div><small>${label}</small><b>${val}</b><i>${sub}</i></div></div>`;
+
+  // Perbandingan hari ini vs kemarin
+  const hari = seri.length ? seri[seri.length - 1].total : 0, kemarin = seri.length > 1 ? seri[seri.length - 2].total : 0;
+  let delta = '';
+  if (kemarin > 0) { const p = Math.round((hari - kemarin) / kemarin * 100); delta = `<span class="db-d ${p >= 0 ? 'up' : 'dn'}">${p >= 0 ? '▲' : '▼'} ${Math.abs(p)}%</span>`; }
+
+  const tot7 = seri.reduce((p, c) => p + c.total, 0), avg7 = seri.length ? Math.round(tot7 / seri.length) : 0;
+  const best = seri.reduce((p, c) => c.total > p.total ? c : p, { total: 0, tgl: '' });
+  const topMax = Math.max(...(d.top || []).map(t => t.qty), 1);
+
+  v.innerHTML = `
+  <div class="db-head">
+    <div><h2>${sapa}, ${e((S.user.nama || '').split(' ')[0])}</h2><p>${HARI[now.getDay()]}, ${now.getDate()} ${BLN[now.getMonth()]} ${now.getFullYear()}</p></div>
+    <div class="db-act"><button class="btn a" onclick="location.hash='kasir'">+ Transaksi Baru</button>${A ? `<button class="btn" onclick="location.hash='pembelian'">Pembelian</button><button class="btn" onclick="location.hash='laporan'">Laporan</button>` : ''}</div>
+  </div>
+
+  <div class="db-kpi">
+    ${K('', IC.cart, 'Omzet hari ini', rp(d.omzetHari), `${d.trxHari} transaksi${delta}`)}
+    ${K('a', IC.chart, 'Omzet bulan ini', rp(d.omzetBulan), `${d.trxBulan} transaksi`)}
+    ${A ? K('g', IC.wallet, 'Laba bersih bulan ini', rp(d.labaBulan), `setelah biaya ${rp(d.biayaBulan)}`) : ''}
+    ${K(d.jmlMenipis ? 'r' : 'g', WARN, 'Stok menipis', d.jmlMenipis + ' barang', d.jmlMenipis ? 'perlu segera restok' : 'semua stok aman')}
+  </div>
+
+  <div class="db-grid">
+    <div class="card">
+      <div class="db-ch"><h3>Penjualan 7 hari terakhir</h3><span>dalam Rupiah</span></div>
+      <div class="db-chart">${seri.map((x, i) => `<div class="db-col ${i === seri.length - 1 ? 'now' : ''}" title="${tglID(x.tgl)}: ${rp(x.total)}"><em>${short(x.total)}</em><u style="height:${Math.max(1.5, x.total / mx * 82)}%"></u></div>`).join('')}</div>
+      <div class="db-axis">${seri.map((x, i) => `<div class="${i === seri.length - 1 ? 'now' : ''}">${hr(x.tgl)}<br>${x.tgl.slice(8)}</div>`).join('')}</div>
+      <div class="db-sum"><span>Total 7 hari: <b>${rp(tot7)}</b></span><span>Rata-rata/hari: <b>${rp(avg7)}</b></span>${best.total ? `<span>Terbaik: <b>${hr(best.tgl)}, ${tglID(best.tgl).slice(0, 5)}</b></span>` : ''}</div>
+    </div>
+
+    <div class="card">
+      <div class="db-ch"><h3>Perlu restok</h3><a onclick="location.hash='barang'">Lihat barang</a></div>
+      ${d.stokMenipis.length ? `<div class="db-rank">${d.stokMenipis.slice(0, 6).map(b => {
+        const pct = Math.min(100, Math.max(4, b.Stok / Math.max(b.StokMin, 1) * 100));
+        return `<div class="db-ri" style="grid-template-columns:1fr auto"><div class="t"><b>${e(b.Nama)}</b><small>${e(b.Ukuran || '')}</small><div class="db-bar ${b.Stok <= 0 ? 'bad' : 'warn'}"><i style="width:${pct}%"></i></div></div><div class="v"><span class="bd ${b.Stok <= 0 ? 'bad' : 'warn'}">${nf(b.Stok)}</span><br><small class="note">min ${nf(b.StokMin)}</small></div></div>`;
+      }).join('')}</div>${d.stokMenipis.length > 6 ? `<p class="note" style="margin-top:10px">+${d.stokMenipis.length - 6} barang lainnya</p>` : ''}` : '<div class="db-ok">✓ Semua stok masih aman</div>'}
+    </div>
+  </div>
+
+  <div class="db-grid" style="grid-template-columns:1fr ${A ? '1.2fr' : ''}">
+    <div class="card">
+      <div class="db-ch"><h3>Produk terlaris bulan ini</h3><span>qty terjual</span></div>
+      ${(d.top || []).length ? `<div class="db-rank">${d.top.map((t, i) => `<div class="db-ri ${i === 0 ? 'f' : ''}"><div class="n">${i + 1}</div><div class="t"><b>${e(t.nama)}</b><div class="db-bar"><i style="width:${t.qty / topMax * 100}%"></i></div></div><div class="v">${nf(t.qty)}</div></div>`).join('')}</div>` : '<p class="note">Belum ada penjualan bulan ini.</p>'}
+    </div>
+    ${A ? `<div class="card">
+      <div class="db-ch"><h3>Ringkasan keuangan</h3><a onclick="location.hash='laporan'">Laporan lengkap</a></div>
+      <div class="db-fin">
+        <div><small>Piutang pelanggan</small><b style="color:var(--bad)">${rp(d.piutang)}</b></div>
+        <div><small>Hutang supplier</small><b style="color:var(--warn)">${rp(d.hutang)}</b></div>
+        <div><small>Nilai persediaan</small><b>${rp(d.nilaiStok)}</b></div>
+        <div><small>Biaya bulan ini</small><b>${rp(d.biayaBulan)}</b></div>
+      </div>
+    </div>` : ''}
+  </div>`;
 }
 
 /* ============ KASIR ============ */
