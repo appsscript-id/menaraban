@@ -159,6 +159,13 @@ html,body{overscroll-behavior-y:contain}
 @media print{.cards{display:none!important}.tw.hasc{display:block!important}}
 .more{text-align:center;margin:12px 0}
 @media print{.more{display:none!important}}
+details.acc{background:var(--card);border:1px solid var(--line);border-radius:var(--r);margin-bottom:12px}
+details.acc>summary{list-style:none;cursor:pointer;padding:14px 18px;font:700 17px 'Barlow Semi Condensed';display:flex;justify-content:space-between;align-items:center;gap:10px}
+details.acc>summary::-webkit-details-marker{display:none}
+details.acc>summary::after{content:'';flex:none;width:8px;height:8px;border-right:2px solid var(--mut);border-bottom:2px solid var(--mut);transform:rotate(45deg);transition:transform .2s;margin-right:4px}
+details.acc[open]>summary::after{transform:rotate(-135deg)}
+details.acc[open]>summary{border-bottom:1px solid var(--line)}
+details.acc>.accb{padding:14px 18px 18px}
 </style>
 </head>
 <body>
@@ -718,24 +725,34 @@ async function setView(n) {
 
 async function pPengaturan(v) {
   const c = S.cfg, F = [['nama_toko', 'Nama toko'], ['telp', 'Telepon / WA'], ['alamat', 'Alamat', 1], ['footer_struk', 'Catatan kaki struk', 1], ['prefix_beli', 'Awalan nomor nota beli'], ['kategori', 'Kategori barang (pisahkan koma; "Jasa" = tanpa stok)', 1], ['ppn_persen', 'Tarif PPN pembelian (%)'], ['ppn_hpp', 'PPN masuk ke harga pokok barang?', 0, [['N', 'Tidak (PPN = pajak masukan)'], ['Y', 'Ya (PPN tidak dikreditkan)']]]];
-  v.innerHTML = `<div class="grid2"><div class="card"><h3>Profil Toko & Nota</h3><div class="fg">${F.map(f => `<label class="f ${f[2] ? 'full' : ''}"><span>${f[1]}</span>${f[3] ? `<select id="cf_${f[0]}">${f[3].map(o => `<option value="${o[0]}" ${c[f[0]] === o[0] ? 'selected' : ''}>${o[1]}</option>`).join('')}</select>` : `<input id="cf_${f[0]}" value="${e(c[f[0]])}">`}</label>`).join('')}</div><br><button class="btn p" id="cfSave">Simpan Pengaturan</button></div>
-  <div><div class="card"><h3>Ganti Password</h3><div class="fg"><label class="f full"><span>Password lama</span><input type="password" id="pl"></label><label class="f full"><span>Password baru (min. 6 karakter)</span><input type="password" id="pn"></label></div><br><button class="btn p" id="pwSave">Ubah Password</button></div>
-  <div class="card"><h3>Tips</h3><p class="note">Data tersimpan di Google Spreadsheet milik Anda. Backup rutin: File → Buat salinan. Jasa pasang/balancing: buat barang berkategori "Jasa" agar tidak mengurangi stok.</p></div></div></div>
-  <div class="card"><h3>Tampilan Kasir / Penjualan</h3><p class="note" style="margin-bottom:12px">Pilih tampilan halaman Kasir. Berlaku untuk semua pengguna.</p><div class="tiles">${VIEWS.map((t, i) => `<button class="tile ${(+S.cfg.tampilan_kasir || 1) === i + 1 ? 'on' : ''}" onclick="setView(${i + 1})">${thumb(i + 1)}<b>${i + 1}. ${t[0]}</b><small>${t[1]}</small></button>`).join('')}</div></div>
-  <div class="card"><h3>Backup Data</h3><div id="bk">Memuat...</div></div>
-  <div class="card"><h3>Pengguna Aplikasi</h3><div id="usr"></div></div>`;
-  loadBackup();
-  $('#cfSave').onclick = async () => { const o = {}; F.forEach(f => o[f[0]] = $('#cf_' + f[0]).value); S.cfg = await api('saveSettings', o); $('#sName').textContent = S.cfg.nama_toko; toast('Pengaturan tersimpan'); };
-  $('#pwSave').onclick = async () => { try { await api('changePassword', { lama: $('#pl').value, baru: $('#pn').value }); toast('Password diubah'); $('#pl').value = $('#pn').value = ''; } catch (x) { fail(x); } };
-  const el = $('#usr');
-  await crud(el, {
-    sheet: 'Users', name: 'Pengguna',
-    def: () => ({ Role: 'kasir', Aktif: 'Y' }),
-    fields: [{ k: 'Username', l: 'Username', req: 1 }, { k: 'Nama', l: 'Nama lengkap', req: 1 }, { k: 'Password', l: 'Password (kosong = tidak diubah)', t: 'password' }, { k: 'Role', l: 'Hak akses', t: 'select', o: [['kasir', 'Kasir'], ['admin', 'Admin']] }, { k: 'Aktif', l: 'Status', t: 'select', o: [['Y', 'Aktif'], ['N', 'Nonaktif']] }],
-    cols: [['Username', r => r.Username], ['Nama', r => r.Nama], ['Hak akses', r => r.Role], ['Status', r => H(r.Aktif === 'Y' ? '<span class="bd ok">Aktif</span>' : '<span class="bd">Nonaktif</span>')]]
-  });
-}
+  const acc = (id, title, body, open) => `<details class="acc" id="${id}" ${open ? 'open' : ''}><summary>${title}</summary><div class="accb">${body}</div></details>`;
+  v.innerHTML =
+    acc('acProfil', 'Profil Toko & Nota',
+      `<div class="fg">${F.map(f => `<label class="f ${f[2] ? 'full' : ''}"><span>${f[1]}</span>${f[3] ? `<select id="cf_${f[0]}">${f[3].map(o => `<option value="${o[0]}" ${c[f[0]] === o[0] ? 'selected' : ''}>${o[1]}</option>`).join('')}</select>` : `<input id="cf_${f[0]}" value="${e(c[f[0]])}">`}</label>`).join('')}</div><br><button class="btn p" id="cfSave">Simpan Pengaturan</button>`, true) +
+    acc('acView', 'Tampilan Kasir / Penjualan',
+      `<p class="note" style="margin-bottom:12px">Pilih tampilan halaman Kasir. Berlaku untuk semua pengguna.</p><div class="tiles">${VIEWS.map((t, i) => `<button class="tile ${(+S.cfg.tampilan_kasir || 1) === i + 1 ? 'on' : ''}" onclick="setView(${i + 1})">${thumb(i + 1)}<b>${i + 1}. ${t[0]}</b><small>${t[1]}</small></button>`).join('')}</div>`) +
+    acc('acPw', 'Ganti Password',
+      `<div class="fg"><label class="f full"><span>Password lama</span><input type="password" id="pl"></label><label class="f full"><span>Password baru (min. 6 karakter)</span><input type="password" id="pn"></label></div><br><button class="btn p" id="pwSave">Ubah Password</button>`) +
+    acc('acBackup', 'Backup Data', `<div id="bk">Memuat...</div>`) +
+    acc('acUser', 'Pengguna Aplikasi', `<div id="usr">Memuat...</div>`) +
+    acc('acTips', 'Tips', `<p class="note">Data tersimpan di Google Spreadsheet milik Anda. Backup rutin: File → Buat salinan. Jasa pasang/balancing: buat barang berkategori "Jasa" agar tidak mengurangi stok.</p>`);
 
+  $('#cfSave').onclick = async () => { try { const o = {}; F.forEach(f => o[f[0]] = $('#cf_' + f[0]).value); S.cfg = await api('saveSettings', o); $('#sName').textContent = S.cfg.nama_toko; toast('Pengaturan tersimpan'); } catch (x) { fail(x); } };
+  $('#pwSave').onclick = async () => { try { await api('changePassword', { lama: $('#pl').value, baru: $('#pn').value }); toast('Password diubah'); $('#pl').value = $('#pn').value = ''; } catch (x) { fail(x); } };
+
+  // Backup dan Pengguna dimuat hanya saat bagian itu dibuka pertama kali
+  let bkOk = false, usOk = false;
+  $('#acBackup').ontoggle = ev => { if (ev.target.open && !bkOk) { bkOk = true; loadBackup(); } };
+  $('#acUser').ontoggle = ev => {
+    if (!ev.target.open || usOk) return; usOk = true;
+    crud($('#usr'), {
+      sheet: 'Users', name: 'Pengguna',
+      def: () => ({ Role: 'kasir', Aktif: 'Y' }),
+      fields: [{ k: 'Username', l: 'Username', req: 1 }, { k: 'Nama', l: 'Nama lengkap', req: 1 }, { k: 'Password', l: 'Password (kosong = tidak diubah)', t: 'password' }, { k: 'Role', l: 'Hak akses', t: 'select', o: [['kasir', 'Kasir'], ['admin', 'Admin']] }, { k: 'Aktif', l: 'Status', t: 'select', o: [['Y', 'Aktif'], ['N', 'Nonaktif']] }],
+      cols: [['Username', r => r.Username], ['Nama', r => r.Nama], ['Hak akses', r => r.Role], ['Status', r => H(r.Aktif === 'Y' ? '<span class="bd ok">Aktif</span>' : '<span class="bd">Nonaktif</span>')]]
+    }).catch(x => { usOk = false; $('#usr').innerHTML = `<p class="note">${e(x.message)}</p>`; });
+  };
+}
 /* ============ PASSWORD WAJIB, RETUR, TUTUP KASIR, BACKUP ============ */
 function forcePw() {
   modal('Ganti Password Wajib', `<p class="note" style="margin-bottom:12px">Anda masih memakai password bawaan. Demi keamanan, ganti sekarang.</p><div class="fg"><label class="f full"><span>Password lama</span><input type="password" id="fp0" autocomplete="current-password"></label><label class="f full"><span>Password baru (min. 6 karakter)</span><input type="password" id="fp1" autocomplete="new-password"></label><label class="f full"><span>Ulangi password baru</span><input type="password" id="fp2" autocomplete="new-password"></label></div>`, async () => {
