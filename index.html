@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#1f2933">
-<title>Menara Ban - Aplikasi Toko</title>
+<title>Menara Ban</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -235,8 +235,8 @@ details.acc>.accb{padding:14px 18px 18px}
 <!-- LOGIN -->
 <section id="login">
   <form class="lbox" id="lform">
-    <div class="logo"><div class="tire"></div><div><b>Menara Ban</b><small>Aplikasi Toko</small></div></div>
-    <h2>Masuk</h2><p>Gunakan akun yang diberikan admin toko.</p>
+    <div class="logo"><div class="tire"></div><div><b>Menara Ban</b></div></div>
+<h2 style="text-align:center;margin:22px 0 16px">Masuk</h2>
     <label class="f"><span>Username</span><input id="lu" autocomplete="off" required></label><br>
     <label class="f"><span>Password</span><input id="lp" type="password" autocomplete="new-password" required></label><br>
     <button class="btn p" style="width:100%;padding:10px" id="lbtn">Masuk</button>
@@ -246,7 +246,7 @@ details.acc>.accb{padding:14px 18px 18px}
 <!-- APP -->
 <div id="app">
   <aside id="side">
-    <div class="logo"><div class="tire"></div><div><b id="sName">Menara Ban</b><small style="color:#9aa5b1">Aplikasi Toko</small></div></div>
+    <div class="logo"><div class="tire"></div><div><b id="sName">Menara Ban</b></div></div>
     <nav id="nav"></nav>
     <div class="me"><b id="meName"></b><span id="meRole"></span><button class="btn s" onclick="logout()">Keluar</button></div>
   </aside>
@@ -408,7 +408,7 @@ async function boot() {
     const r = await api('init');
     Object.assign(S, { user: r.user, cfg: r.settings, barang: r.barang, pelanggan: r.pelanggan, supplier: r.supplier });
     $('#login').style.display = 'none'; $('#splash').style.display = 'none'; $('#app').style.display = 'block';
-    $('#sName').textContent = S.cfg.nama_toko || 'Menara Ban'; document.title = (S.cfg.nama_toko || 'Menara Ban') + ' - Aplikasi Toko';
+    $('#sName').textContent = S.cfg.nama_toko || 'Menara Ban'; document.title = S.cfg.nama_toko || 'Menara Ban';
     $('#meName').textContent = S.user.nama; $('#meRole').textContent = S.user.role === 'admin' ? 'Administrator' : 'Kasir';
     buildNav(); route(); if (S.user.wajib) forcePw();
   } catch (x) {
