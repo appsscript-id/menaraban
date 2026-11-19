@@ -207,14 +207,14 @@ let S = { token: localStorage.getItem('mb_token') || '', user: null, cfg: {}, ba
 let busyN = 0;
 
 async function api(action, data) {
-  busyN++; $('#busy').classList.add('on');
+  busyN++; $('#busy').classList.add('on'); document.body.classList.add('wait');
   try {
     if (API_URL.indexOf('GANTI') === 0) throw new Error('API_URL belum diisi di index.html');
     const r = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action, token: S.token, data }) });
     const j = await r.json();
     if (!j.ok) { if (j.error === 'SESSION') logout(true); throw new Error(j.msg); }
     return j.data;
-  } finally { if (--busyN === 0) $('#busy').classList.remove('on'); }
+  } finally { if (--busyN === 0) { $('#busy').classList.remove('on'); document.body.classList.remove('wait'); } }
 }
 function toast(m, err) {
   const d = document.createElement('div'); d.textContent = m; if (err) d.className = 'err';
@@ -276,13 +276,15 @@ function csv(name, heads, rows) {
 /* ============ AUTH & BOOT ============ */
 $('#lform').onsubmit = async ev => {
   ev.preventDefault(); const b = $('#lbtn'); b.disabled = true; b.textContent = 'Memeriksa...';
-   try {
+  try {
     const r = await api('login', { username: $('#lu').value, password: $('#lp').value });
     S.token = r.token; localStorage.setItem('mb_token', r.token);
     localStorage.setItem('mb_page', 'dashboard'); history.replaceState(null, '', '#dashboard');
     $('#lu').value = ''; $('#lp').value = '';
     await boot();
-  };
+  } catch (x) { fail(x); }
+  b.disabled = false; b.textContent = 'Masuk';
+};
 function logout(silent) {
   localStorage.removeItem('mb_token'); localStorage.removeItem('mb_page');
   S.token = ''; S.user = null;
@@ -432,6 +434,7 @@ async function saleSave() {
   if (t.bayar < t.total && (!p.pel || p.pel === 'Umum')) return toast('Piutang wajib memilih pelanggan (bukan Umum)', true);
   $('#bSave').disabled = true;
   try {
+    const r = await api('saveSale', { items: S.cart.map(c => ({ id: c.id, nama: c.nama, qty: c.qty, harga: c.harga, diskon: c.diskon })), diskon: unf(p.diskon), bayar: t.bayar, no: p.noManual ? String(p.no || '').trim() : '', pelanggan: p.pel || 'Umum', metode: p.metode || 'Tunai', catatan: p.cat || '' });
     toast('Transaksi ' + r.sale.No + ' tersimpan');
     S.cart.forEach(c => { if (!c.jasa) { const b = S.barang.find(x => x.ID === c.id); if (b) b.Stok -= c.qty; } });
     S.cart = []; S.pos = {}; S.nextNo = r.nextNo; prodList(); cartRender();
@@ -473,11 +476,7 @@ async function pPenjualan(v) {
   v.innerHTML = rangeBar('pj') + '<div id="pjR"></div>';
   const load = async () => {
     const r = await api('list', { sheet: 'Penjualan', from: $('#pjF').value, to: $('#pjT').value }); r.reverse();
-     window.strukLama = async id => {
-    const s = (window._pj || []).find(x => x.ID === id);
-    const d = (await api('list', { sheet: 'DetailPenjualan', from: s.Tanggal, to: s.Tanggal })).filter(x => x.NoNota === s.No);
-    strukModal(s, d);
-  };
+    window._pj = r;
     const ok = r.filter(x => x.Batal !== 'Y');
     $('#pjR').innerHTML = tbl(['No', 'Tanggal', 'Pelanggan', 'Total', 'Bayar', 'Status', 'Kasir', ''], r.map(x => [x.No, tglID(x.Tanggal) + ' ' + x.Waktu, x.Pelanggan, x.Total, x.Bayar, H(badge(x.Status)),
       x.Kasir, H(`<button class="btn s" onclick="strukLama('${x.ID}')">Struk</button>${x.Status === 'Piutang' ? `<button class="btn s p" onclick="lunasi('jual','${x.ID}',${x.Total - x.Bayar},load_pj)">Bayar</button>` : ''}${isAdmin() && x.Batal !== 'Y' ? `<button class="btn s" onclick="returForm('${x.ID}',load_pj)">Retur</button><button class="btn s d" onclick="batal('jual','${x.ID}',load_pj)">Batal</button>` : ''}`)].map((c, i) => i === 7 ? { h: c.h, c: 'act' } : c)),
@@ -485,7 +484,7 @@ async function pPenjualan(v) {
   };
   window.load_pj = load; $('#pjGo').onclick = load; load();
   window.strukLama = async id => {
-    const r = await api('list', { sheet: 'Penjualan', from: $('#pjF').value, to: $('#pjT').value }), s = r.find(x => x.ID === id);
+    const s = (window._pj || []).find(x => x.ID === id);
     const d = (await api('list', { sheet: 'DetailPenjualan', from: s.Tanggal, to: s.Tanggal })).filter(x => x.NoNota === s.No);
     strukModal(s, d);
   };
