@@ -185,6 +185,9 @@ details.acc>.accb{padding:14px 18px 18px}
 .db-d.up{background:#dff3e7;color:var(--ok)}.db-d.dn{background:#fbe3e3;color:var(--bad)}
 .db-grid{display:grid;grid-template-columns:1.6fr 1fr;gap:16px;margin-bottom:16px}
 .db-grid .card{margin-bottom:0}
+.db-grid>*{min-width:0}
+.db-grid.two{grid-template-columns:1fr 1.2fr}
+.db-grid.two.solo{grid-template-columns:1fr}
 .db-ch{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:12px}
 .db-ch h3{margin:0}.db-ch span,.db-ch a{color:var(--mut);font-size:12.5px}
 .db-ch a{color:var(--pri);cursor:pointer;font-weight:600;text-decoration:none}
@@ -216,7 +219,12 @@ details.acc>.accb{padding:14px 18px 18px}
 .db-fin b{font:700 19px 'Barlow Semi Condensed'}
 .db-ok{display:flex;align-items:center;gap:8px;color:var(--ok);font-weight:500;padding:10px 0}
 @media(max-width:900px){
- .db-grid{grid-template-columns:1fr}
+  .db-grid.two,.db-grid.two.solo{grid-template-columns:1fr}
+ .db-fin{grid-template-columns:1fr 1fr;gap:10px}
+ .db-fin div{padding:12px}
+ .db-fin b{font-size:16px}
+ .db-ch h3{font-size:16px}
+ .db-ch a{white-space:nowrap}
  .db-kpi{grid-template-columns:1fr 1fr;gap:10px}
  .db-k{flex-direction:column;align-items:flex-start;gap:10px;padding:14px}
  .db-k b{font-size:19px}
@@ -512,7 +520,7 @@ async function pDashboard(v) {
     </div>
   </div>
 
-  <div class="db-grid" style="grid-template-columns:1fr ${A ? '1.2fr' : ''}">
+  <div class="db-grid two ${A ? '' : 'solo'}">
     <div class="card">
       <div class="db-ch"><h3>Produk terlaris bulan ini</h3><span>qty terjual</span></div>
       ${(d.top || []).length ? `<div class="db-rank">${d.top.map((t, i) => `<div class="db-ri ${i === 0 ? 'f' : ''}"><div class="n">${i + 1}</div><div class="t"><b>${e(t.nama)}</b><div class="db-bar"><i style="width:${t.qty / topMax * 100}%"></i></div></div><div class="v">${nf(t.qty)}</div></div>`).join('')}</div>` : '<p class="note">Belum ada penjualan bulan ini.</p>'}
