@@ -166,7 +166,7 @@ details.acc>summary::after{content:'';flex:none;width:8px;height:8px;border-righ
 details.acc[open]>summary::after{transform:rotate(-135deg)}
 details.acc[open]>summary{border-bottom:1px solid var(--line)}
 details.acc>.accb{padding:14px 18px 18px}
-/* ===== DASHBOARD PROFESIONAL: tempel di dalam <style>, tepat sebelum </style> ===== */
+/* dashboard profesional */
 .db-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:18px}
 .db-head h2{font-size:24px;line-height:1.15}
 .db-head p{color:var(--mut);margin-top:2px}
@@ -461,7 +461,6 @@ async function route() {
 window.onhashchange = route;
 
 /* ============ DASHBOARD ============ */
-/* ===== DASHBOARD PROFESIONAL: ganti seluruh fungsi pDashboard lama (dari "async function pDashboard" sampai sebelum "/* ====== KASIR") ===== */
 async function pDashboard(v) {
   const d = await api('dashboard'), A = isAdmin();
   const seri = d.seri || [], mx = Math.max(...seri.map(x => x.total), 1);
@@ -475,7 +474,6 @@ async function pDashboard(v) {
   const WARN = '<path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01"/>';
   const K = (cls, ic, label, val, sub) => `<div class="db-k ${cls}">${ico(ic)}<div><small>${label}</small><b>${val}</b><i>${sub}</i></div></div>`;
 
-  // Perbandingan hari ini vs kemarin
   const hari = seri.length ? seri[seri.length - 1].total : 0, kemarin = seri.length > 1 ? seri[seri.length - 2].total : 0;
   let delta = '';
   if (kemarin > 0) { const p = Math.round((hari - kemarin) / kemarin * 100); delta = `<span class="db-d ${p >= 0 ? 'up' : 'dn'}">${p >= 0 ? '▲' : '▼'} ${Math.abs(p)}%</span>`; }
@@ -807,7 +805,7 @@ async function pLaporan(v) {
       foot = ['TOTAL PPN MASUKAN', '', '', rows.reduce((p, c) => p + c[3], 0), rows.reduce((p, c) => p + c[4], 0)];
     }
     cur = { heads, rows, name: 'laporan-' + TABS[tab].replace(/\W+/g, '-').toLowerCase() };
-    $('#lpR').innerHTML = `<h3>${TABS[tab]}</h3><p class="note" style="margin-bottom:10px">${tab === 4 ? 'Posisi stok saat ini' : per}</p>` + tbl(heads, rows, foot, true);;
+    $('#lpR').innerHTML = `<h3>${TABS[tab]}</h3><p class="note" style="margin-bottom:10px">${tab === 4 ? 'Posisi stok saat ini' : per}</p>` + tbl(heads, rows, foot, true);
   };
   const load = async () => { D = await api('report', { from: $('#lpF').value, to: $('#lpT').value }); draw(); };
   $('#lpGo').onclick = load; $('#lpCsv').onclick = () => cur && csv(cur.name, cur.heads, cur.rows); draw(); load();
@@ -990,7 +988,6 @@ async function pReturBeli(v) {
   $('#rbGo').onclick = load; load();
 }
 
-/* ============ START ============ */
 /* ============ TARIK UNTUK REFRESH ============ */
 (function () {
   const el = $('#ptr'), TH = 60; let y0 = 0, dy = 0, on = false, busy = false;
@@ -1021,6 +1018,8 @@ async function pReturBeli(v) {
     try { await route(); } finally { el.classList.remove('go'); pos(0, true); busy = false; }
   });
 })();
+
+/* ============ START ============ */
 boot();
 </script>
 </body>
