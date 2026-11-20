@@ -604,36 +604,64 @@ async function beliForm(done) {
 }
 
 /* ============ CRUD UMUM ============ */
+const _cr = {}, _cf = {};
 async function crud(v, cfg) {
-  const rows = await api('list', { sheet: cfg.sheet, ...(cfg.range ? { from: mStart(), to: today() } : {}) });
+  const rg = cfg.range ? (_cr[cfg.sheet] = _cr[cfg.sheet] || { f: mStart(), t: today() }) : null;
+  const rows = await api('list', { sheet: cfg.sheet, ...(rg ? { from: rg.f, to: rg.t } : {}) });
   const A = isAdmin(), canEdit = A || cfg.kasir;
   if (cfg.sheet === 'Barang') S.barang = rows; if (cfg.sheet === 'Pelanggan') S.pelanggan = rows;
-  v.innerHTML = `<div class="bar"><input class="grow" id="cq" placeholder="Cari..."><span id="cInfo" class="note"></span>${canEdit ? `<button class="btn a" id="cAdd">+ Tambah</button>` : ''}${cfg.csv ? '<button class="btn" id="cCsv">Ekspor CSV</button>' : ''}</div><div id="cT"></div>`;
+  const FL = cfg.filters || [], st = (_cf[cfg.sheet] = _cf[cfg.sheet] || { q: '', f: [] });
+  const optHtml = (f, i) => {
+    const o = typeof f.o === 'function' ? [...new Set(f.o(rows).filter(Boolean))].sort().map(x => [x, x]) : f.o;
+    return `<select data-fi="${i}"><option value="">${e(f.l)}</option>${o.map(x => `<option value="${e(x[0])}" ${String(st.f[i] ?? '') === String(x[0]) ? 'selected' : ''}>${e(x[1])}</option>`).join('')}</select>`;
+  };
+  v.innerHTML = (rg ? quickBar('cr') + `<div class="bar"><label>Dari <input type="date" id="crF" value="${rg.f}"></label><label>Sampai <input type="date" id="crT" value="${rg.t}"></label><button class="btn p" id="crGo">Tampilkan</button></div>` : '')
+    + `<div class="bar"><input class="grow" id="cq" placeholder="Cari..." value="${e(st.q)}">${FL.map(optHtml).join('')}${FL.length ? '<button class="btn" id="cRs">Reset filter</button>' : ''}<span id="cInfo" class="note"></span>${canEdit ? `<button class="btn a" id="cAdd">+ Tambah</button>` : ''}${cfg.csv ? '<button class="btn" id="cCsv">Ekspor CSV</button>' : ''}</div><div id="cT"></div>`;
+  let cur = [];
   const draw = () => {
-    const q = $('#cq').value.toLowerCase(), L = rows.filter(r => Object.values(r).join(' ').toLowerCase().includes(q)).slice().reverse();
-    $('#cInfo').textContent = L.length + ' data';
+    st.q = $('#cq').value; const q = st.q.toLowerCase().trim();
+    document.querySelectorAll('select[data-fi]').forEach(s => { st.f[+s.dataset.fi] = s.value; });
+    const L = rows.filter(r => FL.every((f, i) => !st.f[i] || f.t(r, st.f[i])) && (!q || Object.values(r).join(' ').toLowerCase().includes(q))).slice().reverse();
+    cur = L;
+    $('#cInfo').textContent = L.length + ' dari ' + rows.length + ' data';
     const visibleCols = cfg.sheet === 'Barang' && !A ? cfg.cols.filter(c => c[0] !== 'Harga Beli') : cfg.cols;
-     $('#cT').innerHTML = tbl([...visibleCols.map(c => c[0]), ''], L.map(r => [...visibleCols.map(c => c[1](r)), { h: (cfg.extra ? cfg.extra(r) : '') + (canEdit ? `<button class="btn s" data-e="${r.ID}">Ubah</button>` : '') + (A ? `<button class="btn s d" data-d="${r.ID}">${['Barang','Pelanggan','Supplier'].includes(cfg.sheet) ? 'Nonaktifkan' : 'Hapus'}</button>` : ''), c: 'act' }]));
-    };
-  const save = async o => { await api('save', { sheet: cfg.sheet, row: o }); toast('Data tersimpan'); reload(); };
+    $('#cT').innerHTML = tbl([...visibleCols.map(c => c[0]), ''], L.map(r => [...visibleCols.map(c => c[1](r)), { h: (cfg.extra ? cfg.extra(r) : '') + (canEdit ? `<button class="btn s" data-e="${r.ID}">Ubah</button>` : '') + (A ? `<button class="btn s d" data-d="${r.ID}">${['Barang','Pelanggan','Supplier'].includes(cfg.sheet) ? 'Nonaktifkan' : 'Hapus'}</button>` : ''), c: 'act' }]), cfg.foot ? cfg.foot(L) : undefined);
+  };
+  const save = async o => { await api('save', { sheet: cfg.sheet, row: o }); toast('Data tersimpan'); reload().catch(fail); };
   const reload = () => crud(v, cfg);
   window['reload_' + cfg.sheet] = reload;
-  $('#cq').oninput = draw; draw();
-   $('#cT').onclick = ev => {
+  $('#cq').oninput = draw;
+  document.querySelectorAll('select[data-fi]').forEach(s => { s.onchange = draw; });
+  if ($('#cRs')) $('#cRs').onclick = () => { $('#cq').value = ''; document.querySelectorAll('select[data-fi]').forEach(s => { s.value = ''; }); draw(); };
+  if (rg) { $('#crGo').onclick = () => { rg.f = $('#crF').value; rg.t = $('#crT').value; reload().catch(fail); }; quickBind('cr'); }
+  draw();
+  $('#cT').onclick = ev => {
     const b = ev.target.closest('[data-e],[data-d]'); if (!b) return;
     if (b.dataset.e) formModal('Ubah ' + cfg.name, cfg.fields, rows.find(x => x.ID === b.dataset.e), save);
-    else confirmBox(['Barang','Pelanggan','Supplier'].includes(cfg.sheet) ? 'Nonaktifkan data ini? Riwayat transaksi lama tetap tersimpan.' : 'Hapus data ini?', async () => { await api('del', { sheet: cfg.sheet, id: b.dataset.d }); toast(['Barang','Pelanggan','Supplier'].includes(cfg.sheet) ? 'Data dinonaktifkan' : 'Data dihapus'); reload(); });
+    else confirmBox(['Barang','Pelanggan','Supplier'].includes(cfg.sheet) ? 'Nonaktifkan data ini? Riwayat transaksi lama tetap tersimpan.' : 'Hapus data ini?', async () => { await api('del', { sheet: cfg.sheet, id: b.dataset.d }); toast(['Barang','Pelanggan','Supplier'].includes(cfg.sheet) ? 'Data dinonaktifkan' : 'Data dihapus'); reload().catch(fail); });
   };
   if ($('#cAdd')) $('#cAdd').onclick = () => formModal('Tambah ' + cfg.name, cfg.fields, cfg.def ? cfg.def() : {}, save);
-  if ($('#cCsv')) $('#cCsv').onclick = () => csv(cfg.sheet, cfg.cols.map(c => c[0]), rows.map(r => cfg.cols.map(c => { const x = c[1](r); return x && x.h !== undefined ? x.h.replace(/<[^>]+>/g, '') : x; })));
+  if ($('#cCsv')) $('#cCsv').onclick = () => csv(cfg.sheet, cfg.cols.map(c => c[0]), cur.map(r => cfg.cols.map(c => { const x = c[1](r); return x && x.h !== undefined ? x.h.replace(/<[^>]+>/g, '') : x; })));
 }
+const STATUS_F = { l: 'Semua status', o: [['Y', 'Aktif'], ['N', 'Nonaktif']], t: (r, v) => v === 'N' ? r.Aktif === 'N' : r.Aktif !== 'N' };
 const CUST_F = [{ k: 'Nama', l: 'Nama', req: 1 }, { k: 'Telp', l: 'No. HP / WA' }, { k: 'Kendaraan', l: 'Kendaraan / Plat' }, { k: 'Alamat', l: 'Alamat', full: 1 }, { k: 'Catatan', l: 'Catatan', t: 'textarea', full: 1 }];
-const pPelanggan = v => crud(v, { sheet: 'Pelanggan', name: 'Pelanggan', kasir: 1, fields: CUST_F, cols: [['Nama', r => r.Nama], ['HP', r => r.Telp], ['Kendaraan', r => r.Kendaraan], ['Alamat', r => r.Alamat]] });
-const pSupplier = v => crud(v, { sheet: 'Supplier', name: 'Supplier', fields: [{ k: 'Nama', l: 'Nama Supplier', req: 1 }, { k: 'Telp', l: 'No. HP / Telp' }, { k: 'Alamat', l: 'Alamat', full: 1 }, { k: 'Catatan', l: 'Catatan', t: 'textarea', full: 1 }], cols: [['Nama', r => r.Nama], ['Telp', r => r.Telp], ['Alamat', r => r.Alamat], ['Catatan', r => r.Catatan]] });
+const pPelanggan = v => crud(v, {
+  sheet: 'Pelanggan', name: 'Pelanggan', kasir: 1, fields: CUST_F,
+  filters: [STATUS_F, { l: 'Semua data', o: [['hp', 'Belum ada No. HP'], ['kend', 'Belum ada kendaraan']], t: (r, v) => v === 'hp' ? !String(r.Telp || '').trim() : !String(r.Kendaraan || '').trim() }],
+  cols: [['Nama', r => r.Nama], ['HP', r => r.Telp], ['Kendaraan', r => r.Kendaraan], ['Alamat', r => r.Alamat], ['Status', r => r.Aktif === 'N' ? 'Nonaktif' : 'Aktif']]
+});
+const pSupplier = v => crud(v, {
+  sheet: 'Supplier', name: 'Supplier',
+  fields: [{ k: 'Nama', l: 'Nama Supplier', req: 1 }, { k: 'Telp', l: 'No. HP / Telp' }, { k: 'Alamat', l: 'Alamat', full: 1 }, { k: 'Catatan', l: 'Catatan', t: 'textarea', full: 1 }],
+  filters: [STATUS_F, { l: 'Semua data', o: [['telp', 'Belum ada No. Telp']], t: (r, v) => !String(r.Telp || '').trim() }],
+  cols: [['Nama', r => r.Nama], ['Telp', r => r.Telp], ['Alamat', r => r.Alamat], ['Catatan', r => r.Catatan], ['Status', r => r.Aktif === 'N' ? 'Nonaktif' : 'Aktif']]
+});
 const pPengeluaran = v => crud(v, {
   sheet: 'Pengeluaran', name: 'Pengeluaran', range: 1, csv: 1, def: () => ({ Tanggal: today() }),
   fields: [{ k: 'Tanggal', l: 'Tanggal', t: 'date', req: 1 }, { k: 'Kategori', l: 'Kategori', t: 'select', o: ['Gaji', 'Listrik & Air', 'Sewa', 'Transport', 'Perawatan', 'Lain-lain'] }, { k: 'Keterangan', l: 'Keterangan', full: 1 }, { k: 'Jumlah', l: 'Jumlah (Rp)', t: 'number', req: 1 }],
-  cols: [['Tanggal', r => tglID(r.Tanggal)], ['Kategori', r => r.Kategori], ['Keterangan', r => r.Keterangan], ['Jumlah', r => r.Jumlah], ['User', r => r.User]]
+  filters: [{ l: 'Semua kategori', o: rows => rows.map(r => r.Kategori), t: (r, v) => r.Kategori === v }, { l: 'Semua user', o: rows => rows.map(r => r.User), t: (r, v) => r.User === v }],
+  cols: [['Tanggal', r => tglID(r.Tanggal)], ['Kategori', r => r.Kategori], ['Keterangan', r => r.Keterangan], ['Jumlah', r => r.Jumlah], ['User', r => r.User]],
+  foot: L => ['TOTAL ' + L.length + ' data', '', '', sum(L, 'Jumlah'), '', '']
 });
 const pBarang = v => crud(v, {
   sheet: 'Barang', name: 'Barang', kasir: 0, csv: 1,
@@ -641,6 +669,13 @@ const pBarang = v => crud(v, {
   fields: [{ k: 'Kode', l: 'Kode (kosong = otomatis)' }, { k: 'Nama', l: 'Nama barang', req: 1 }, { k: 'Kategori', l: 'Kategori', t: 'select', o: cats }, { k: 'Merek', l: 'Merek' }, { k: 'Ukuran', l: 'Ukuran / Tipe', ph: 'mis. 185/65 R15' },
     { k: 'Satuan', l: 'Satuan', t: 'select', o: ['Pcs', 'Set', 'Unit', 'Liter', 'Kali'] }, { k: 'HargaBeli', l: 'Harga beli', t: 'number' }, { k: 'HargaJual', l: 'Harga eceran', t: 'number', req: 1 }, { k: 'HargaGrosir', l: 'Harga grosir', t: 'number' }, { k: 'HargaBengkel', l: 'Harga bengkel', t: 'number' },
     { k: 'Stok', l: 'Stok awal', t: 'number', newOnly: 1 }, { k: 'StokMin', l: 'Stok minimum', t: 'number' }, { k: 'Lokasi', l: 'Lokasi rak' }, { k: 'Aktif', l: 'Status', t: 'select', o: [['Y', 'Aktif'], ['N', 'Nonaktif']], def: 'Y' }],
+  filters: [
+    { l: 'Semua kategori', o: rows => rows.map(r => r.Kategori), t: (r, v) => r.Kategori === v },
+    { l: 'Semua merek', o: rows => rows.map(r => r.Merek), t: (r, v) => r.Merek === v },
+    { l: 'Semua kondisi stok', o: [['habis', 'Stok habis'], ['tipis', 'Stok menipis'], ['aman', 'Stok aman']], t: (r, v) => r.Kategori !== 'Jasa' && (v === 'habis' ? r.Stok <= 0 : v === 'tipis' ? (r.Stok > 0 && r.Stok <= r.StokMin) : r.Stok > r.StokMin) },
+    { l: 'Semua lokasi', o: rows => rows.map(r => r.Lokasi), t: (r, v) => r.Lokasi === v },
+    STATUS_F
+  ],
   cols: [['Kode', r => r.Kode], ['Nama', r => r.Nama + (r.Ukuran ? ' · ' + r.Ukuran : '')], ['Kategori', r => r.Kategori], ['Merek', r => r.Merek], ['Harga Beli', r => r.HargaBeli], ['Harga Jual', r => r.HargaJual],
     ['Stok', r => r.Kategori === 'Jasa' ? H('-') : H(`<span class="bd ${r.Stok <= 0 ? 'bad' : r.Stok <= r.StokMin ? 'warn' : 'ok'}">${r.Stok} ${e(r.Satuan)}</span>`)], ['Status', r => r.Aktif === 'N' ? 'Nonaktif' : 'Aktif']],
   extra: r => isAdmin() && r.Kategori !== 'Jasa' ? `<button class="btn s" onclick="opname('${r.ID}')">Stok</button>` : ''
@@ -652,19 +687,57 @@ function opname(id) {
 
 /* ============ MUTASI STOK ============ */
 async function pMutasi(v) {
-  v.innerHTML = rangeBar('mt') + '<div id="mtR"></div>';
-  const load = async () => {
-    const r = (await api('list', { sheet: 'Mutasi', from: $('#mtF').value, to: $('#mtT').value })).reverse();
-    $('#mtR').innerHTML = tbl(['Tanggal', 'Barang', 'Jenis', 'Qty', 'Stok Akhir', 'Ref', 'User', 'Ket'], r.map(x => [tglID(x.Tanggal) + ' ' + x.Waktu, x.Nama, x.Jenis, x.Qty, x.StokAkhir, x.Ref, x.User, x.Ket]));
+  const extra = `<input class="grow" id="mtQ" placeholder="Cari barang / ref / keterangan..."><select id="mtJ"><option value="">Semua jenis</option></select><select id="mtA"><option value="">Masuk &amp; keluar</option><option value="in">Stok masuk (+)</option><option value="out">Stok keluar (-)</option></select><select id="mtU"><option value="">Semua user</option></select><button class="btn" id="mtRs">Reset filter</button>`;
+  v.innerHTML = quickBar('mt') + rangeBar('mt', 0, extra) + '<p class="note" id="mtInfo" style="margin-bottom:8px"></p><div id="mtR"></div>';
+  let DATA = [];
+  const draw = () => {
+    const q = $('#mtQ').value.toLowerCase().trim(), jn = $('#mtJ').value, ar = $('#mtA').value, us = $('#mtU').value;
+    const L = DATA.filter(x => (!jn || x.Jenis === jn) && (!us || x.User === us) && (!ar || (ar === 'in' ? x.Qty > 0 : x.Qty < 0)) && (!q || (x.Nama + ' ' + x.Ref + ' ' + x.Ket + ' ' + x.User).toLowerCase().includes(q)));
+    $('#mtInfo').textContent = 'Menampilkan ' + L.length + ' dari ' + DATA.length + ' mutasi';
+    $('#mtR').innerHTML = tbl(['Tanggal', 'Barang', 'Jenis', 'Qty', 'Stok Akhir', 'Ref', 'User', 'Ket'], L.map(x => [tglID(x.Tanggal) + ' ' + x.Waktu, x.Nama, x.Jenis, x.Qty, x.StokAkhir, x.Ref, x.User, x.Ket]));
   };
-  $('#mtGo').onclick = () => load().catch(fail); load().catch(fail);
+  const load = async () => {
+    DATA = (await api('list', { sheet: 'Mutasi', from: $('#mtF').value, to: $('#mtT').value })).reverse();
+    fillOpts($('#mtJ'), DATA.map(x => x.Jenis), 'Semua jenis');
+    fillOpts($('#mtU'), DATA.map(x => x.User), 'Semua user');
+    draw();
+  };
+  $('#mtGo').onclick = () => load().catch(fail); quickBind('mt');
+  ['#mtQ', '#mtJ', '#mtA', '#mtU'].forEach(s => { $(s).oninput = $(s).onchange = draw; });
+  $('#mtRs').onclick = () => { $('#mtQ').value = ''; $('#mtJ').value = ''; $('#mtA').value = ''; $('#mtU').value = ''; draw(); };
+  load().catch(fail);
 }
 
 
-async function pServis(v){
-  v.innerHTML=`<div class="bar"><input id="svQ" placeholder="Cari plat nomor kendaraan"><button class="btn p" id="svGo">Cari</button><button class="btn a" id="svAdd">+ Catat Servis</button><input id="svWarranty" placeholder="Cari DOT / plat untuk cek garansi"><button class="btn" id="svWarrantyGo">Cek Garansi</button></div><div id="svRows"></div>`;
-  const load=async()=>{const rows=await api('serviceList',{plat:$('#svQ').value});const upcoming=rows.filter(x=>x.JadwalBerikut&&x.JadwalBerikut>=today()).length;$('#svRows').innerHTML=`<p class="note">Pengingat servis mendatang: ${upcoming} kendaraan tercatat.</p>`+tbl(['Tanggal','Plat Nomor','Pelanggan','Keluhan','Pekerjaan','Montir','Biaya Jasa','Komisi','Servis Berikut'],rows.map(x=>[tglID(x.Tanggal),x.PlatNomor,x.Pelanggan,x.Keluhan,x.Pekerjaan,x.Montir,x.BiayaJasa,x.Komisi,tglID(x.JadwalBerikut)]));};
-  $('#svGo').onclick=()=>load().catch(fail);$('#svWarrantyGo').onclick=async()=>{try{const z=await api('warrantyInfo',{q:$('#svWarranty').value});$('#svRows').innerHTML=tbl(['Nota','Tanggal','Barang','DOT','Plat','Pelanggan','Garansi','Berlaku Sampai','Status'],z.map(x=>[x.NoNota,tglID(x.Tanggal),x.Barang,x.DOT,x.PlatNomor,x.Pelanggan,x.GaransiBulan+' bln',tglID(x.BerlakuSampai),x.Status]));}catch(x){fail(x);}};$('#svAdd').onclick=()=>formModal('Catat Riwayat Servis',[{k:'Tanggal',l:'Tanggal',t:'date',req:1,def:today()},{k:'PlatNomor',l:'Plat nomor',req:1},{k:'Pelanggan',l:'Nama pelanggan'},{k:'Keluhan',l:'Keluhan',t:'textarea',full:1},{k:'Pekerjaan',l:'Pekerjaan / jasa',t:'textarea',full:1},{k:'Barang',l:'Barang yang dipasang'},{k:'Montir',l:'Nama montir'},{k:'BiayaJasa',l:'Biaya jasa',t:'number'},{k:'Komisi',l:'Komisi montir',t:'number'},{k:'Km',l:'Kilometer',t:'number'},{k:'JadwalBerikut',l:'Jadwal servis berikutnya',t:'date'},{k:'Catatan',l:'Catatan',t:'textarea',full:1}],{},async row=>{await api('saveService',{row});toast('Riwayat servis disimpan');load();});load().catch(fail);
+async function pServis(v) {
+  v.innerHTML = quickBar('sv') + `<div class="bar"><label>Dari <input type="date" id="svF"></label><label>Sampai <input type="date" id="svT"></label><button class="btn p" id="svGo">Tampilkan</button><input class="grow" id="svQ" placeholder="Cari plat / pelanggan / keluhan / pekerjaan / barang..."><select id="svM"><option value="">Semua montir</option></select><select id="svJ"><option value="">Semua jadwal</option><option value="dekat">Servis berikut: akan datang</option><option value="lewat">Servis berikut: sudah lewat</option><option value="none">Tanpa jadwal</option></select><button class="btn" id="svRs">Reset filter</button></div><div class="bar"><button class="btn a" id="svAdd">+ Catat Servis</button><input id="svWarranty" placeholder="Cari DOT / plat untuk cek garansi"><button class="btn" id="svWarrantyGo">Cek Garansi</button></div><p class="note" id="svInfo" style="margin-bottom:8px"></p><div id="svRows"></div>`;
+  let DATA = [];
+  const draw = () => {
+    const q = $('#svQ').value.toLowerCase().trim(), mt = $('#svM').value, jd = $('#svJ').value, t0 = today();
+    const L = DATA.filter(x => (!mt || x.Montir === mt) && (!jd || (jd === 'dekat' ? (x.JadwalBerikut && x.JadwalBerikut >= t0) : jd === 'lewat' ? (x.JadwalBerikut && x.JadwalBerikut < t0) : !x.JadwalBerikut)) && (!q || [x.PlatNomor, x.Pelanggan, x.Keluhan, x.Pekerjaan, x.Barang, x.Catatan].join(' ').toLowerCase().includes(q)));
+    const up = DATA.filter(x => x.JadwalBerikut && x.JadwalBerikut >= t0).length;
+    $('#svInfo').textContent = 'Menampilkan ' + L.length + ' dari ' + DATA.length + ' riwayat · Pengingat servis mendatang: ' + up + ' kendaraan';
+    $('#svRows').innerHTML = tbl(['Tanggal', 'Plat Nomor', 'Pelanggan', 'Keluhan', 'Pekerjaan', 'Montir', 'Biaya Jasa', 'Komisi', 'Servis Berikut'],
+      L.map(x => [tglID(x.Tanggal), x.PlatNomor, x.Pelanggan, x.Keluhan, x.Pekerjaan, x.Montir, x.BiayaJasa, x.Komisi, tglID(x.JadwalBerikut)]),
+      ['TOTAL ' + L.length + ' servis', '', '', '', '', '', sum(L, 'BiayaJasa'), sum(L, 'Komisi'), '']);
+  };
+  const load = async () => {
+    DATA = await api('serviceList', { from: $('#svF').value, to: $('#svT').value });
+    fillOpts($('#svM'), DATA.map(x => x.Montir), 'Semua montir');
+    draw();
+  };
+  $('#svGo').onclick = () => load().catch(fail); quickBind('sv');
+  ['#svQ', '#svM', '#svJ'].forEach(s => { $(s).oninput = $(s).onchange = draw; });
+  $('#svRs').onclick = () => { $('#svQ').value = ''; $('#svM').value = ''; $('#svJ').value = ''; draw(); };
+  $('#svWarrantyGo').onclick = async () => {
+    try {
+      const z = await api('warrantyInfo', { q: $('#svWarranty').value });
+      $('#svInfo').textContent = 'Hasil cek garansi: ' + z.length + ' data. Klik Tampilkan untuk kembali ke riwayat servis.';
+      $('#svRows').innerHTML = tbl(['Nota', 'Tanggal', 'Barang', 'DOT', 'Plat', 'Pelanggan', 'Garansi', 'Berlaku Sampai', 'Status'], z.map(x => [x.NoNota, tglID(x.Tanggal), x.Barang, x.DOT, x.PlatNomor, x.Pelanggan, x.GaransiBulan + ' bln', tglID(x.BerlakuSampai), x.Status]));
+    } catch (x) { fail(x); }
+  };
+  $('#svAdd').onclick = () => formModal('Catat Riwayat Servis', [{ k: 'Tanggal', l: 'Tanggal', t: 'date', req: 1, def: today() }, { k: 'PlatNomor', l: 'Plat nomor', req: 1 }, { k: 'Pelanggan', l: 'Nama pelanggan' }, { k: 'Keluhan', l: 'Keluhan', t: 'textarea', full: 1 }, { k: 'Pekerjaan', l: 'Pekerjaan / jasa', t: 'textarea', full: 1 }, { k: 'Barang', l: 'Barang yang dipasang' }, { k: 'Montir', l: 'Nama montir' }, { k: 'BiayaJasa', l: 'Biaya jasa', t: 'number' }, { k: 'Komisi', l: 'Komisi montir', t: 'number' }, { k: 'Km', l: 'Kilometer', t: 'number' }, { k: 'JadwalBerikut', l: 'Jadwal servis berikutnya', t: 'date' }, { k: 'Catatan', l: 'Catatan', t: 'textarea', full: 1 }], {}, async row => { await api('saveService', { row }); toast('Riwayat servis disimpan'); load().catch(fail); });
+  load().catch(fail);
 }
 
 /* ============ LAPORAN ============ */
@@ -798,18 +871,31 @@ async function returForm(id, cb) {
 }
 
 async function pRetur(v) {
-  v.innerHTML = rangeBar('rt') + '<div id="rtL"></div>';
-  const load = async () => {
-    const r = (await api('list', { sheet: 'Retur', from: $('#rtF').value, to: $('#rtT').value })).reverse();
+  const extra = `<input class="grow" id="rtQ" placeholder="Cari no retur / nota / pelanggan / alasan..."><select id="rtP"><option value="">Semua pelanggan</option></select><select id="rtJn"><option value="">Semua jenis</option><option value="kembali">Uang kembali</option><option value="potong">Potong piutang</option></select><select id="rtM"><option value="">Semua metode</option><option>Tunai</option><option>Transfer</option></select><select id="rtU"><option value="">Semua user</option></select><button class="btn" id="rtRs">Reset filter</button>`;
+  v.innerHTML = quickBar('rt') + rangeBar('rt', 0, extra) + '<p class="note" id="rtInfo" style="margin-bottom:8px"></p><div id="rtL"></div>';
+  let DATA = [];
+  const draw = () => {
+    const q = $('#rtQ').value.toLowerCase().trim(), pl = $('#rtP').value, jn = $('#rtJn').value, mt = $('#rtM').value, us = $('#rtU').value;
+    const L = DATA.filter(x => (!pl || x.Pelanggan === pl) && (!jn || (jn === 'potong' ? x.PotongPiutang > 0 : !(x.PotongPiutang > 0))) && (!mt || x.Metode === mt) && (!us || x.User === us) && (!q || (x.No + ' ' + x.NoNota + ' ' + x.Pelanggan + ' ' + x.Alasan + ' ' + x.User).toLowerCase().includes(q)));
+    $('#rtInfo').textContent = 'Menampilkan ' + L.length + ' dari ' + DATA.length + ' retur';
     $('#rtL').innerHTML = tbl(['No Retur', 'Tanggal', 'Nota', 'Pelanggan', 'Total', 'Potong Piutang', 'Uang Kembali', 'Alasan', ''],
-      r.map(x => [x.No, tglID(x.Tanggal) + ' ' + x.Waktu, x.NoNota, x.Pelanggan, x.Total, x.PotongPiutang, x.UangKembali, x.Alasan, { h: `<button class="btn s" onclick="detailRetur('${x.No}','${x.Tanggal}')">Detail</button>`, c: 'act' }]),
-      ['TOTAL', '', '', '', sum(r, 'Total'), sum(r, 'PotongPiutang'), sum(r, 'UangKembali'), '', '']);
+      L.map(x => [x.No, tglID(x.Tanggal) + ' ' + x.Waktu, x.NoNota, x.Pelanggan, x.Total, x.PotongPiutang, x.UangKembali, x.Alasan, { h: `<button class="btn s" onclick="detailRetur('${x.No}','${x.Tanggal}')">Detail</button>`, c: 'act' }]),
+      ['TOTAL', '', '', '', sum(L, 'Total'), sum(L, 'PotongPiutang'), sum(L, 'UangKembali'), '', '']);
+  };
+  const load = async () => {
+    DATA = (await api('list', { sheet: 'Retur', from: $('#rtF').value, to: $('#rtT').value })).reverse();
+    fillOpts($('#rtP'), DATA.map(x => x.Pelanggan), 'Semua pelanggan');
+    fillOpts($('#rtU'), DATA.map(x => x.User), 'Semua user');
+    draw();
   };
   window.detailRetur = async (no, t) => {
     const d = (await api('list', { sheet: 'DetailRetur', from: t, to: t })).filter(x => x.NoRetur === no);
     modal('Detail ' + no, tbl(['Barang', 'Qty', 'Harga', 'Subtotal', 'Kondisi'], d.map(x => [x.Nama, x.Qty, x.Harga, x.Subtotal, x.Kondisi])));
   };
-  $('#rtGo').onclick = () => load().catch(fail); load().catch(fail);
+  $('#rtGo').onclick = () => load().catch(fail); quickBind('rt');
+  ['#rtQ', '#rtP', '#rtJn', '#rtM', '#rtU'].forEach(s => { $(s).oninput = $(s).onchange = draw; });
+  $('#rtRs').onclick = () => { ['#rtQ', '#rtP', '#rtJn', '#rtM', '#rtU'].forEach(s => { $(s).value = ''; }); draw(); };
+  load().catch(fail);
 }
 
 async function pTutup(v) {
@@ -883,18 +969,31 @@ async function returBeliForm(id, cb) {
 }
 
 async function pReturBeli(v) {
-  v.innerHTML = rangeBar('rb') + '<div id="rbL"></div>';
-  const load = async () => {
-    const r = (await api('list', { sheet: 'ReturBeli', from: $('#rbF').value, to: $('#rbT').value })).reverse();
+  const extra = `<input class="grow" id="rbQ" placeholder="Cari no retur / nota beli / supplier / alasan..."><select id="rbSp"><option value="">Semua supplier</option></select><select id="rbJn"><option value="">Semua jenis</option><option value="kembali">Uang kembali</option><option value="potong">Potong hutang</option></select><select id="rbU"><option value="">Semua user</option></select><button class="btn" id="rbRs">Reset filter</button>`;
+  v.innerHTML = quickBar('rb') + rangeBar('rb', 0, extra) + '<p class="note" id="rbInfo" style="margin-bottom:8px"></p><div id="rbL"></div>';
+  let DATA = [];
+  const draw = () => {
+    const q = $('#rbQ').value.toLowerCase().trim(), sp = $('#rbSp').value, jn = $('#rbJn').value, us = $('#rbU').value;
+    const L = DATA.filter(x => (!sp || x.Supplier === sp) && (!jn || (jn === 'potong' ? x.PotongHutang > 0 : !(x.PotongHutang > 0))) && (!us || x.User === us) && (!q || (x.No + ' ' + x.NoNota + ' ' + x.Supplier + ' ' + x.Alasan + ' ' + x.User).toLowerCase().includes(q)));
+    $('#rbInfo').textContent = 'Menampilkan ' + L.length + ' dari ' + DATA.length + ' retur';
     $('#rbL').innerHTML = tbl(['No Retur', 'Tanggal', 'Nota Beli', 'Supplier', 'Total', 'PPN', 'Potong Hutang', 'Uang Kembali', 'Alasan', ''],
-      r.map(x => [x.No, tglID(x.Tanggal) + ' ' + x.Waktu, x.NoNota, x.Supplier, x.Total, x.PPN, x.PotongHutang, x.UangKembali, x.Alasan, { h: `<button class="btn s" onclick="detailReturBeli('${x.No}','${x.Tanggal}')">Detail</button>`, c: 'act' }]),
-      ['TOTAL', '', '', '', sum(r, 'Total'), sum(r, 'PPN'), sum(r, 'PotongHutang'), sum(r, 'UangKembali'), '', '']);
+      L.map(x => [x.No, tglID(x.Tanggal) + ' ' + x.Waktu, x.NoNota, x.Supplier, x.Total, x.PPN, x.PotongHutang, x.UangKembali, x.Alasan, { h: `<button class="btn s" onclick="detailReturBeli('${x.No}','${x.Tanggal}')">Detail</button>`, c: 'act' }]),
+      ['TOTAL', '', '', '', sum(L, 'Total'), sum(L, 'PPN'), sum(L, 'PotongHutang'), sum(L, 'UangKembali'), '', '']);
+  };
+  const load = async () => {
+    DATA = (await api('list', { sheet: 'ReturBeli', from: $('#rbF').value, to: $('#rbT').value })).reverse();
+    fillOpts($('#rbSp'), DATA.map(x => x.Supplier), 'Semua supplier');
+    fillOpts($('#rbU'), DATA.map(x => x.User), 'Semua user');
+    draw();
   };
   window.detailReturBeli = async (no, t) => {
     const d = (await api('list', { sheet: 'DetailReturBeli', from: t, to: t })).filter(x => x.NoRetur === no);
     modal('Detail ' + no, tbl(['Barang', 'Qty', 'Harga', 'Subtotal'], d.map(x => [x.Nama, x.Qty, x.Harga, x.Subtotal])));
   };
-  $('#rbGo').onclick = () => load().catch(fail); load().catch(fail);
+  $('#rbGo').onclick = () => load().catch(fail); quickBind('rb');
+  ['#rbQ', '#rbSp', '#rbJn', '#rbU'].forEach(s => { $(s).oninput = $(s).onchange = draw; });
+  $('#rbRs').onclick = () => { ['#rbQ', '#rbSp', '#rbJn', '#rbU'].forEach(s => { $(s).value = ''; }); draw(); };
+  load().catch(fail);
 }
 
 /* ============ TARIK UNTUK REFRESH ============ */
