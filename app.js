@@ -1,4 +1,3 @@
-
 /* ============ KONFIGURASI ============ */
 // Ganti dengan URL Web App Apps Script Anda (akhiran /exec)
 const API_URL = 'https://script.google.com/macros/s/AKfycbyie9Csrbxr62yiIbBxqz_HbVxgnZdlZNJB9o7_ZVopFNC9CwHIFJvOQBuYKyL74I3AHw/exec';
@@ -394,6 +393,97 @@ function strukModal(s, items) {
   };
 }
 
+/* ============ NOTA (kertas setengah HVS / A5 landscape 210x148 mm) ============ */
+const NOTA_ROWS = 10;
+const NOTA_CSS = `.np{box-sizing:border-box;width:210mm;height:148mm;padding:6mm 9mm 5mm;background:#fff;color:#000;font-family:Arial,Helvetica,sans-serif;position:relative;overflow:hidden;page-break-after:always;margin:0 auto 10px}
+.np:last-child{page-break-after:auto}
+.np *{box-sizing:border-box;margin:0;padding:0}
+.np .hd1{display:flex;justify-content:space-between;align-items:flex-start;gap:6mm}
+.np .ttl{font:700 29pt/1 'Times New Roman',Times,serif;letter-spacing:.3px}
+.np .sub{font-size:9pt;line-height:1.32;margin-top:1.2mm}
+.np .sub small{font-size:8pt;display:block}
+.np .rt{width:84mm;font-size:9pt;flex:none;padding-top:2mm}
+.np .rt .ln{display:flex;align-items:flex-end;gap:1mm;height:6.2mm;white-space:nowrap}
+.np .dl{flex:1;border-bottom:1px dotted #000;min-width:0;overflow:hidden;text-overflow:ellipsis;padding-left:1mm;height:4.6mm;line-height:4.4mm}
+.np .nno{font:700 12pt Arial,sans-serif;margin:3mm 0 1.2mm;display:flex;align-items:flex-end;gap:2mm}
+.np .nno .dl{flex:none;width:62mm;height:5.2mm;font:700 10pt Arial;line-height:5mm}
+.np .nno .pg{font:400 8pt Arial;margin-left:auto}
+.np .thick{border-top:1.1mm solid #000;margin-bottom:1mm}
+.np table{width:100%;border-collapse:collapse;table-layout:fixed;border:.35mm solid #000;background:#fff}
+.np th,.np td{border:.3mm solid #000;font-size:9pt;height:5.65mm;line-height:1;padding:0 1.6mm;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.np th{font-weight:700;text-align:center;height:6.4mm;font-size:10pt}
+.np td.r{text-align:right}.np td.c{text-align:center}
+.np .ft{display:flex;justify-content:space-between;margin-top:1mm}
+.np .nb{font-size:10pt;line-height:1.3;padding-left:1mm;margin-top:1.3mm}
+.np .nb span{display:block;padding-left:9mm}
+.np .jm{display:flex;align-items:flex-start;gap:3mm;font-weight:700;font-size:10pt}
+.np .jm span{padding-top:2mm}
+.np .jm div{width:36mm;height:9.5mm;border:.3mm solid #000;border-top:0;font-size:11pt;display:flex;align-items:center;justify-content:flex-end;padding-right:2mm}
+.np .sg{display:flex;justify-content:space-between;font-size:10pt;margin-top:3mm;padding:0 11mm 0 12mm}`;
+
+function notaPageHtml(s, rows, pi, np) {
+  const last = pi === np - 1;
+  const fill = rows.slice();
+  while (fill.length < NOTA_ROWS) fill.push({ q: '', n: '', h: '', j: '' });
+  const tr = fill.map(r => `<tr><td class="c">${e(r.q)}</td><td>${e(r.n)}</td><td class="r">${e(r.h)}</td><td class="r">${e(r.j)}</td></tr>`).join('');
+  return `<div class="np">
+<div class="hd1"><div><div class="ttl">MENARA BAN</div>
+<div class="sub">Jual Beli Ban Mobil &amp; Velg Racing (Import &amp; Lokal)<br>Jl. Demak No. 353 Surabaya<small>(150 meter setelah masjid Demak / Sebelah BRI unit Demak)</small>Telp. (031) 3554726 Fax. 3556596</div></div>
+<div class="rt"><div class="ln">Tanggal,<span class="dl">${e(tglID(s.Tanggal))}</span></div><div class="ln">Tuan / Toko,<span class="dl">${e(s.Pelanggan)}</span></div><div class="ln"><span class="dl">${e(s.Catatan || '')}</span></div><div class="ln"><span class="dl"></span></div></div></div>
+<div class="nno">NOTA No: <span class="dl">${e(s.No)}</span>${np > 1 ? `<span class="pg">Hal. ${pi + 1}/${np}</span>` : ''}</div>
+<div class="thick"></div>
+<table><colgroup><col style="width:19.3%"><col style="width:45.6%"><col style="width:18.2%"><col style="width:16.9%"></colgroup><thead><tr><th>Banyaknya</th><th>Nama Barang</th><th>Harga Satuan</th><th>Jumlah</th></tr></thead><tbody>${tr}</tbody></table>
+<div class="ft"><div class="nb">NB: Barang yang sudah dibeli tidak dapat ditukar /<span>dikembalikan kecuali ada perjanjian.</span></div><div class="jm"><span>Jumlah Rp.</span><div>${last ? nf(s.Total) : ''}</div></div></div>
+<div class="sg"><span>Penerima,</span><span>Hormat kami,</span></div>
+</div>`;
+}
+function notaHtml(s, items) {
+  const rows = items.map(i => ({ q: nf(i.Qty), n: i.Nama + (i.Diskon ? ' (disk. ' + nf(i.Diskon) + ')' : ''), h: nf(i.Harga), j: nf(i.Subtotal) }));
+  if (s.Diskon) rows.push({ q: '', n: 'Diskon nota', h: '', j: '-' + nf(s.Diskon) });
+  if (s.PPN) {
+    const net = s.Subtotal - s.Diskon;
+    rows.push(s.Total > net ? { q: '', n: 'PPN', h: '', j: nf(s.PPN) } : { q: '', n: 'PPN ' + nf(s.PPN) + ' (sudah termasuk)', h: '', j: '' });
+  }
+  const pages = [];
+  for (let i = 0; i < rows.length; i += NOTA_ROWS) pages.push(rows.slice(i, i + NOTA_ROWS));
+  if (!pages.length) pages.push([]);
+  return pages.map((p, i) => notaPageHtml(s, p, i, pages.length)).join('');
+}
+function notaPrint(s, items) {
+  const html = `<html><head><title>Nota ${e(s.No)}</title><style>@page{size:210mm 148mm;margin:0}html,body{margin:0;padding:0;background:#fff}${NOTA_CSS}.np{margin:0 auto!important}</style></head><body>${notaHtml(s, items)}</body></html>`;
+  const f = document.createElement('iframe'); f.style.cssText = 'position:fixed;width:0;height:0;border:0;right:0;bottom:0'; document.body.appendChild(f);
+  f.contentDocument.open(); f.contentDocument.write(html); f.contentDocument.close();
+  setTimeout(() => { f.contentWindow.focus(); f.contentWindow.print(); setTimeout(() => f.remove(), 2000); }, 400);
+}
+function notaModal(s, items) {
+  const fn = 'Nota-' + s.No.replace(/\//g, '-');
+  modal('Nota ' + s.No, `<style>${NOTA_CSS}</style><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><button class="btn p" id="nP">Cetak</button><button class="btn" id="nD">Simpan PDF</button></div><p class="note" style="margin-bottom:8px">Ukuran kertas: setengah HVS (A5 landscape, 210 x 148 mm). Pada dialog cetak, pilih ukuran A5 dan skala 100%.</p><div id="nWrap" style="background:#eef1f4;padding:10px;border-radius:8px;overflow:auto">${notaHtml(s, items)}</div>`, null, '', true);
+  $('#nP').onclick = () => notaPrint(s, items);
+  $('#nD').onclick = async ev => {
+    const b = ev.target; b.disabled = true;
+    try {
+      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+      const pdf = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'mm', format: [210, 148] });
+      const pgs = [...document.querySelectorAll('#nWrap .np')];
+      for (let i = 0; i < pgs.length; i++) {
+        const cv = await html2canvas(pgs[i], { scale: 3, backgroundColor: '#ffffff' });
+        if (i) pdf.addPage([210, 148], 'landscape');
+        pdf.addImage(cv.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, 210, 148);
+      }
+      pdf.save(fn + '.pdf');
+    } catch (x) { fail(x); }
+    b.disabled = false;
+  };
+}
+async function notaLama(id) {
+  try {
+    const s = (window._pj || []).find(x => x.ID === id);
+    const d = (await api('list', { sheet: 'DetailPenjualan', from: s.Tanggal, to: s.Tanggal })).filter(x => x.NoNota === s.No);
+    notaModal(s, d);
+  } catch (x) { fail(x); }
+}
+
 /* ============ RIWAYAT PENJUALAN ============ */
 function rangeBar(id, fn, extra) {
   return `<div class="bar"><label>Dari <input type="date" id="${id}F" value="${mStart()}"></label><label>Sampai <input type="date" id="${id}T" value="${today()}"></label><button class="btn p" id="${id}Go">Tampilkan</button>${extra || ''}</div>`;
@@ -405,7 +495,7 @@ async function pPenjualan(v) {
     window._pj = r;
     const ok = r.filter(x => x.Batal !== 'Y');
     $('#pjR').innerHTML = tbl(['No', 'Tanggal', 'Pelanggan', 'Total', 'Bayar', 'Status', 'Jatuh Tempo', 'Kasir', ''], r.map(x => [x.No, tglID(x.Tanggal) + ' ' + x.Waktu, x.Pelanggan, x.Total, x.Bayar, H(badge(x.Status)),
-      tglID(x.JatuhTempo), x.Kasir, H(`<button class="btn s" data-receipt="${e(x.ID)}" onclick="strukLama(this.dataset.receipt)">Struk</button>${x.Status === 'Piutang' ? `<button class="btn s p" onclick="lunasi('jual','${x.ID}',${x.Total - x.Bayar},load_pj)">Bayar</button>` : ''}${isAdmin() && x.Batal !== 'Y' ? `<button class="btn s" onclick="returForm('${x.ID}',load_pj)">Retur</button><button class="btn s d" onclick="batal('jual','${x.ID}',load_pj)">Batal</button>` : ''}`)].map((c, i) => i === 8 ? { h: c.h, c: 'act' } : c)),
+      tglID(x.JatuhTempo), x.Kasir, H(`<button class="btn s" data-receipt="${e(x.ID)}" onclick="strukLama(this.dataset.receipt)">Struk</button><button class="btn s" data-receipt="${e(x.ID)}" onclick="notaLama(this.dataset.receipt)">Nota</button>${x.Status === 'Piutang' ? `<button class="btn s p" onclick="lunasi('jual','${x.ID}',${x.Total - x.Bayar},load_pj)">Bayar</button>` : ''}${isAdmin() && x.Batal !== 'Y' ? `<button class="btn s" onclick="returForm('${x.ID}',load_pj)">Retur</button><button class="btn s d" onclick="batal('jual','${x.ID}',load_pj)">Batal</button>` : ''}`)].map((c, i) => i === 8 ? { h: c.h, c: 'act' } : c)),
       ['Total ' + ok.length + ' transaksi', '', '', sum(ok, 'Total'), sum(ok, 'Bayar'), '', '', '', '']);
   };
   window.load_pj = load; $('#pjGo').onclick = load; load();
