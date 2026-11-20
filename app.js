@@ -460,7 +460,10 @@ function notaPrint(s, items) {
 }
 function notaModal(s, items) {
   const fn = 'Nota-' + s.No.replace(/\//g, '-');
-  modal('Nota ' + s.No, `<style>${NOTA_CSS}</style><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><button class="btn p" id="nP">Cetak</button><button class="btn" id="nD">Simpan PDF</button></div><p class="note" style="margin-bottom:8px">Ukuran kertas: setengah HVS (A5 landscape, 210 x 148 mm). Pada dialog cetak, pilih ukuran A5 dan skala 100%.</p><div id="nWrap" style="background:#eef1f4;padding:10px;border-radius:8px;overflow:auto">${notaHtml(s, items)}</div>`, null, '', true);
+  const m = modal('Nota ' + s.No, `<style>${NOTA_CSS}</style><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><button class="btn p" id="nP">Cetak</button><button class="btn" id="nD">Simpan PDF</button></div><p class="note" style="margin-bottom:8px">Ukuran kertas: setengah HVS (A5 landscape, 210 x 148 mm). Pada dialog cetak, pilih ukuran A5 dan skala 100%.</p><div id="nWrap" style="background:#eef1f4;padding:10px;border-radius:8px;overflow:auto">${notaHtml(s, items)}</div>`, null, '', true);
+  const hd = m.querySelector('.mh'); hd.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:10px';
+  hd.insertAdjacentHTML('beforeend', '<button class="btn s" id="nX" type="button">Tutup ✕</button>');
+  m.querySelector('.mf').style.display = 'none'; $('#nX').onclick = m.close;
   $('#nP').onclick = () => notaPrint(s, items);
   $('#nD').onclick = async ev => {
     const b = ev.target; b.disabled = true;
