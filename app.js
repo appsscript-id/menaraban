@@ -494,22 +494,45 @@ async function notaLama(id) {
 function rangeBar(id, fn, extra) {
   return `<div class="bar"><label>Dari <input type="date" id="${id}F" value="${mStart()}"></label><label>Sampai <input type="date" id="${id}T" value="${today()}"></label><button class="btn p" id="${id}Go">Tampilkan</button>${extra || ''}</div>`;
 }
+function quickBar(id) {
+  return `<div class="bar" id="${id}Q"><button class="btn s" data-q="0">Hari ini</button><button class="btn s" data-q="1">7 hari terakhir</button><button class="btn s" data-q="2">Bulan ini</button><button class="btn s" data-q="3">Bulan lalu</button></div>`;
+}
+function quickBind(id) {
+  const iso = d => d.toLocaleDateString('sv-SE'), n = new Date();
+  const R = [[today(), today()], [iso(new Date(Date.now() - 6 * 864e5)), today()], [mStart(), today()], [iso(new Date(n.getFullYear(), n.getMonth() - 1, 1)), iso(new Date(n.getFullYear(), n.getMonth(), 0))]];
+  document.querySelectorAll('#' + id + 'Q button').forEach(b => b.onclick = () => { const r = R[+b.dataset.q]; $('#' + id + 'F').value = r[0]; $('#' + id + 'T').value = r[1]; $('#' + id + 'Go').click(); });
+}
+function fillOpts(sel, vals, label) {
+  const cur = sel.value;
+  sel.innerHTML = `<option value="">${label}</option>` + [...new Set(vals.filter(Boolean))].sort().map(x => `<option ${x === cur ? 'selected' : ''}>${e(x)}</option>`).join('');
+}
 async function pPenjualan(v) {
-  v.innerHTML = rangeBar('pj') + '<div id="pjR"></div>';
+  const extra = `<input class="grow" id="pjQ" placeholder="Cari no nota / pelanggan / kasir / catatan..."><select id="pjS"><option value="">Semua status</option><option>Lunas</option><option>Piutang</option><option value="telat">Piutang lewat jatuh tempo</option><option>Batal</option></select><select id="pjM"><option value="">Semua metode</option><option>Tunai</option><option>Transfer</option><option>QRIS</option><option>Debit</option><option>Campuran</option></select><select id="pjK"><option value="">Semua kasir</option></select><button class="btn" id="pjRs">Reset filter</button>`;
+  v.innerHTML = quickBar('pj') + rangeBar('pj', 0, extra) + '<p class="note" id="pjInfo" style="margin-bottom:8px"></p><div id="pjR"></div>';
+  const draw = () => {
+    const r = window._pj || [], q = $('#pjQ').value.toLowerCase().trim(), st = $('#pjS').value, mt = $('#pjM').value, ks = $('#pjK').value, t0 = today();
+    const L = r.filter(x => (!st || (st === 'telat' ? (x.Status === 'Piutang' && x.JatuhTempo && x.JatuhTempo < t0) : x.Status === st)) && (!mt || x.Metode === mt) && (!ks || x.Kasir === ks) && (!q || (x.No + ' ' + x.Pelanggan + ' ' + x.Kasir + ' ' + x.Catatan).toLowerCase().includes(q)));
+    const ok = L.filter(x => x.Batal !== 'Y');
+    $('#pjInfo').textContent = 'Menampilkan ' + L.length + ' dari ' + r.length + ' transaksi';
+    $('#pjR').innerHTML = tbl(['No', 'Tanggal', 'Pelanggan', 'Total', 'Bayar', 'Status', 'Jatuh Tempo', 'Kasir', ''], L.map(x => [x.No, tglID(x.Tanggal) + ' ' + x.Waktu, x.Pelanggan, x.Total, x.Bayar, H(badge(x.Status)),
+      tglID(x.JatuhTempo), x.Kasir, { h: `<button class="btn s" data-receipt="${e(x.ID)}" onclick="strukLama(this.dataset.receipt)">Struk</button><button class="btn s" data-receipt="${e(x.ID)}" onclick="notaLama(this.dataset.receipt)">Nota</button>${x.Status === 'Piutang' ? `<button class="btn s p" onclick="lunasi('jual','${x.ID}',${x.Total - x.Bayar},load_pj)">Bayar</button>` : ''}${isAdmin() && x.Batal !== 'Y' ? `<button class="btn s" onclick="returForm('${x.ID}',load_pj)">Retur</button><button class="btn s d" onclick="batal('jual','${x.ID}',load_pj)">Batal</button>` : ''}`, c: 'act' }]),
+      ['Total ' + ok.length + ' transaksi', '', '', sum(ok, 'Total'), sum(ok, 'Bayar'), '', '', '', '']);
+  };
   const load = async () => {
     const r = await api('list', { sheet: 'Penjualan', from: $('#pjF').value, to: $('#pjT').value }); r.reverse();
     window._pj = r;
-    const ok = r.filter(x => x.Batal !== 'Y');
-    $('#pjR').innerHTML = tbl(['No', 'Tanggal', 'Pelanggan', 'Total', 'Bayar', 'Status', 'Jatuh Tempo', 'Kasir', ''], r.map(x => [x.No, tglID(x.Tanggal) + ' ' + x.Waktu, x.Pelanggan, x.Total, x.Bayar, H(badge(x.Status)),
-      tglID(x.JatuhTempo), x.Kasir, H(`<button class="btn s" data-receipt="${e(x.ID)}" onclick="strukLama(this.dataset.receipt)">Struk</button><button class="btn s" data-receipt="${e(x.ID)}" onclick="notaLama(this.dataset.receipt)">Nota</button>${x.Status === 'Piutang' ? `<button class="btn s p" onclick="lunasi('jual','${x.ID}',${x.Total - x.Bayar},load_pj)">Bayar</button>` : ''}${isAdmin() && x.Batal !== 'Y' ? `<button class="btn s" onclick="returForm('${x.ID}',load_pj)">Retur</button><button class="btn s d" onclick="batal('jual','${x.ID}',load_pj)">Batal</button>` : ''}`)].map((c, i) => i === 8 ? { h: c.h, c: 'act' } : c)),
-      ['Total ' + ok.length + ' transaksi', '', '', sum(ok, 'Total'), sum(ok, 'Bayar'), '', '', '', '']);
+    fillOpts($('#pjK'), r.map(x => x.Kasir), 'Semua kasir');
+    draw();
   };
-  window.load_pj = load; $('#pjGo').onclick = load; load();
+  window.load_pj = load; $('#pjGo').onclick = load; quickBind('pj');
+  ['#pjQ', '#pjS', '#pjM', '#pjK'].forEach(s => { $(s).oninput = $(s).onchange = draw; });
+  $('#pjRs').onclick = () => { $('#pjQ').value = ''; $('#pjS').value = ''; $('#pjM').value = ''; $('#pjK').value = ''; draw(); };
   window.strukLama = async id => {
     const s = (window._pj || []).find(x => x.ID === id);
     const d = (await api('list', { sheet: 'DetailPenjualan', from: s.Tanggal, to: s.Tanggal })).filter(x => x.NoNota === s.No);
     strukModal(s, d);
   };
+  load();
 }
 function lunasi(type, id, sisa, cb) {
   modal('Pelunasan', `<div class="fg"><label class="f"><span>Nominal metode 1 (sisa ${rp(sisa)})</span><input class="num" inputmode="numeric" id="lj" value="${nf(sisa)}"></label><label class="f"><span>Metode 1</span><select id="lm"><option>Tunai</option><option>Transfer</option><option>QRIS</option><option>Debit</option></select></label><label class="f"><span>Nominal metode 2 (opsional)</span><input class="num" inputmode="numeric" id="lj2" value="0"></label><label class="f"><span>Metode 2</span><select id="lm2"><option>Transfer</option><option>QRIS</option><option>Tunai</option><option>Debit</option></select></label></div>`, async () => { const a=unf($('#lj').value),b=unf($('#lj2').value),payments=b>0?[{metode:$('#lm').value,jumlah:a},{metode:$('#lm2').value,jumlah:b}]:[]; await api('pay', { type, id, jumlah:a+b, metode:$('#lm').value, payments }); toast('Pembayaran dicatat'); cb(); }, 'Catat');
@@ -521,20 +544,32 @@ function batal(type, id, cb) {
 /* ============ PEMBELIAN ============ */
 async function pPembelian(v) {
   $('#topAct').innerHTML = '<button class="btn a" id="pbNew">+ Pembelian Baru</button>';
-  v.innerHTML = rangeBar('pb') + '<div id="pbR"></div>';
-  const load = async () => {
-    const r = await api('list', { sheet: 'Pembelian', from: $('#pbF').value, to: $('#pbT').value }); r.reverse();
-    const ok = r.filter(x => x.Batal !== 'Y');
-    $('#pbR').innerHTML = tbl(['No', 'Tanggal', 'Supplier', 'Total', 'PPN', 'Bayar', 'Status', 'Jatuh Tempo', 'User', ''], r.map(x => [x.No, tglID(x.Tanggal), x.Supplier, x.Total, x.PPN, x.Bayar, H(badge(x.Status)), tglID(x.JatuhTempo), x.User,
+  const extra = `<input class="grow" id="pbQ" placeholder="Cari no nota / supplier / user..."><select id="pbS"><option value="">Semua status</option><option>Lunas</option><option>Hutang</option><option value="telat">Hutang lewat jatuh tempo</option><option>Batal</option></select><select id="pbSup"><option value="">Semua supplier</option></select><button class="btn" id="pbRs">Reset filter</button>`;
+  v.innerHTML = quickBar('pb') + rangeBar('pb', 0, extra) + '<p class="note" id="pbInfo" style="margin-bottom:8px"></p><div id="pbR"></div>';
+  let DATA = [];
+  const draw = () => {
+    const q = $('#pbQ').value.toLowerCase().trim(), st = $('#pbS').value, sp = $('#pbSup').value, t0 = today();
+    const L = DATA.filter(x => (!st || (st === 'telat' ? (x.Status === 'Hutang' && x.JatuhTempo && x.JatuhTempo < t0) : x.Status === st)) && (!sp || x.Supplier === sp) && (!q || (x.No + ' ' + x.Supplier + ' ' + x.User + ' ' + x.Catatan).toLowerCase().includes(q)));
+    const ok = L.filter(x => x.Batal !== 'Y');
+    $('#pbInfo').textContent = 'Menampilkan ' + L.length + ' dari ' + DATA.length + ' nota';
+    $('#pbR').innerHTML = tbl(['No', 'Tanggal', 'Supplier', 'Total', 'PPN', 'Bayar', 'Status', 'Jatuh Tempo', 'User', ''], L.map(x => [x.No, tglID(x.Tanggal), x.Supplier, x.Total, x.PPN, x.Bayar, H(badge(x.Status)), tglID(x.JatuhTempo), x.User,
       { h: `<button class="btn s" data-no="${e(x.No)}" data-tanggal="${e(x.Tanggal)}" onclick="detailBeli(this.dataset.no,this.dataset.tanggal)">Detail</button>${x.Status === 'Hutang' ? `<button class="btn s p" onclick="lunasi('beli','${x.ID}',${x.Total - x.Bayar},load_pb)">Bayar</button>` : ''}${x.Batal !== 'Y' ? `<button class="btn s" onclick="returBeliForm('${x.ID}',load_pb)">Retur</button><button class="btn s d" onclick="batal('beli','${x.ID}',load_pb)">Batal</button>` : ''}`, c: 'act' }]),
       ['Total ' + ok.length + ' nota', '', '', sum(ok, 'Total'), sum(ok, 'PPN'), sum(ok, 'Bayar'), '', '', '', '']);
   };
-  window.load_pb = load; $('#pbGo').onclick = load; load();
+  const load = async () => {
+    DATA = await api('list', { sheet: 'Pembelian', from: $('#pbF').value, to: $('#pbT').value }); DATA.reverse();
+    fillOpts($('#pbSup'), DATA.map(x => x.Supplier), 'Semua supplier');
+    draw();
+  };
+  window.load_pb = load; $('#pbGo').onclick = load; quickBind('pb');
+  ['#pbQ', '#pbS', '#pbSup'].forEach(s => { $(s).oninput = $(s).onchange = draw; });
+  $('#pbRs').onclick = () => { $('#pbQ').value = ''; $('#pbS').value = ''; $('#pbSup').value = ''; draw(); };
   window.detailBeli = async (no, t) => {
     const d = (await api('list', { sheet: 'DetailPembelian', from: t, to: t })).filter(x => x.NoNota === no);
     modal('Detail ' + no, tbl(['Barang', 'Qty', 'Harga', 'Subtotal'], d.map(x => [x.Nama, x.Qty, x.Harga, x.Subtotal])));
   };
   $('#pbNew').onclick = () => beliForm(load);
+  load();
 }
 async function beliForm(done) {
   S.barang = await api('list', { sheet: 'Barang' });
