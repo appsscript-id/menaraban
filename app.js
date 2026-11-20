@@ -21,13 +21,14 @@ function fmtInput(el) {
 document.addEventListener('input', ev => { if (ev.target.classList && ev.target.classList.contains('num')) fmtInput(ev.target); }, true);
 const _ls = {};
 const loadScript = u => _ls[u] || (_ls[u] = new Promise((ok, no) => { const t = document.createElement('script'); t.src = u; t.onload = ok; t.onerror = () => no(new Error('Gagal memuat pustaka, cek koneksi internet')); document.head.appendChild(t); }));
-let S = { token: localStorage.getItem('mb_token') || '', user: null, cfg: {}, barang: [], pelanggan: [], supplier: [], cart: [], pos: {} };
+let S = { token: localStorage.getItem('mb_token') || '', user: null, cfg: {}, barang: [], pelanggan: [], supplier: [], cart: [], pos: {}, pg: 0 };
 let busyN = 0;
 try { const saved = JSON.parse(localStorage.getItem('mb_cart_v1') || '{}'); if (Array.isArray(saved.cart)) S.cart = saved.cart; if (saved.pos && typeof saved.pos === 'object') S.pos = saved.pos; } catch (_) {}
 function persistCart(){ try { localStorage.setItem('mb_cart_v1', JSON.stringify({cart:S.cart,pos:S.pos})); } catch (_) {} }
 
-async function api(action, data) {
-  busyN++; $('#busy').classList.add('on'); document.body.classList.add('wait');
+async function api(action, data, quiet) {
+  if (!SW_READ.has(action)) swClear();
+  if (!quiet) { busyN++; $('#busy').classList.add('on'); document.body.classList.add('wait'); }
   try {
     if (API_URL.indexOf('GANTI') === 0) throw new Error('API_URL belum diisi di index.html');
     const r = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action, token: S.token, data }) });
@@ -43,8 +44,76 @@ async function api(action, data) {
       return {queued:true, clientId};
     }
     throw err;
-  } finally { if (--busyN === 0) { $('#busy').classList.remove('on'); document.body.classList.remove('wait'); } }
+  } finally { if (!quiet && --busyN === 0) { $('#busy').classList.remove('on'); document.body.classList.remove('wait'); } }
 }
+/* ============ CACHE DATA: tampil instan dari cache, lalu diperbarui di latar ============ */
+const SW_READ = new Set(['list', 'dashboard', 'report', 'serviceList', 'warrantyInfo', 'tutupInfo', 'returInfo', 'returInfoBeli', 'nextNo', 'kasirInit', 'backupList', 'init']);
+const SWK = 'mb_sw_', _sw = new Map(), _pf = new Map();
+let swEp = 0;
+function swKey(action, data) { return (S.user ? S.user.id : '') + '|' + action + '|' + JSON.stringify(data === undefined ? null : data); }
+function swGet(key) {
+  if (_sw.has(key)) return _sw.get(key);
+  try { const raw = localStorage.getItem(SWK + key); if (raw !== null) { const o = JSON.parse(raw); _sw.set(key, o); return o; } } catch (_) {}
+  return undefined;
+}
+function swPut(key, val) {
+  _sw.set(key, val);
+  try {
+    const s = JSON.stringify(val);
+    if (s.length > 400000) return;
+    localStorage.setItem(SWK + key, s);
+    const idx = JSON.parse(localStorage.getItem(SWK + '#idx') || '[]').filter(k => k !== key); idx.push(key);
+    while (idx.length > 24) localStorage.removeItem(SWK + idx.shift());
+    localStorage.setItem(SWK + '#idx', JSON.stringify(idx));
+  } catch (_) {}
+}
+function swClear() {
+  swEp++; _sw.clear(); _pf.clear();
+  try { Object.keys(localStorage).filter(k => k.indexOf(SWK) === 0).forEach(k => localStorage.removeItem(k)); } catch (_) {}
+}
+async function swr(action, data, paint) {
+  const key = swKey(action, data), my = S.pg, ep = swEp, cached = swGet(key), live = () => S.pg === my;
+  let shown = null;
+  if (cached !== undefined) { shown = JSON.stringify(cached); if (live()) paint(cached); }
+  let fresh;
+  try { fresh = await api(action, data); }
+  catch (err) {
+    if (!live()) return cached;
+    if (cached !== undefined) { if (S.token) fail(err); return cached; }
+    throw err;
+  }
+  if (ep === swEp) swPut(key, fresh);
+  if (live() && (cached === undefined || JSON.stringify(fresh) !== shown)) paint(fresh);
+  return fresh;
+}
+const PRE = {
+  dashboard: () => [['dashboard', undefined]],
+  penjualan: () => [['list', { sheet: 'Penjualan', from: mStart(), to: today() }]],
+  pembelian: () => [['list', { sheet: 'Pembelian', from: mStart(), to: today() }]],
+  retur: () => [['list', { sheet: 'Retur', from: mStart(), to: today() }]],
+  returbeli: () => [['list', { sheet: 'ReturBeli', from: mStart(), to: today() }]],
+  mutasi: () => [['list', { sheet: 'Mutasi', from: mStart(), to: today() }]],
+  barang: () => [['list', { sheet: 'Barang' }]],
+  pelanggan: () => [['list', { sheet: 'Pelanggan' }]],
+  supplier: () => [['list', { sheet: 'Supplier' }]],
+  pengeluaran: () => { const r = _cr.Pengeluaran || { f: mStart(), t: today() }; return [['list', { sheet: 'Pengeluaran', from: r.f, to: r.t }]]; },
+  servis: () => [['serviceList', { from: '', to: '' }]]
+};
+function prefetchPage(p) {
+  const m = MENU.find(x => x[0] === p);
+  if (!S.user || !PRE[p] || (m && m[3] && !isAdmin())) return;
+  PRE[p]().forEach(([a, d]) => {
+    const k = swKey(a, d), ep = swEp;
+    if (_pf.has(k) && Date.now() - _pf.get(k) < 60000) return;
+    _pf.set(k, Date.now());
+    api(a, d, true).then(r => { if (ep === swEp) swPut(k, r); }).catch(() => {});
+  });
+}
+function prefetchStart() {
+  setTimeout(() => ['penjualan', 'barang', 'pelanggan', 'pembelian'].forEach((p, i) => setTimeout(() => prefetchPage(p), i * 700)), 2000);
+}
+
+
 function toast(m, err) {
   const d = document.createElement('div'); d.textContent = m; if (err) d.className = 'err';
   $('#toast').appendChild(d); setTimeout(() => d.remove(), err ? 5000 : 2600);
@@ -145,6 +214,7 @@ $('#lform').onsubmit = async ev => {
   b.disabled = false; b.textContent = 'Masuk';
 };
 function logout(silent) {
+  swClear();
   localStorage.removeItem('mb_token'); localStorage.removeItem('mb_page');
   S.token = ''; S.user = null;
   if (!silent) { S.cart = []; S.pos = {}; }
@@ -160,7 +230,7 @@ async function boot() {
     $('#login').style.display = 'none'; $('#splash').style.display = 'none'; $('#app').style.display = 'block';
     $('#sName').textContent = S.cfg.nama_toko || 'Menara Ban'; document.title = S.cfg.nama_toko || 'Menara Ban';
     $('#meName').textContent = S.user.nama; $('#meRole').textContent = S.user.role === 'admin' ? 'Administrator' : 'Kasir';
-    buildNav(); route(); setTimeout(syncOfflineSales,1200); if (S.user.wajib) forcePw();
+    buildNav(); route(); prefetchStart(); setTimeout(syncOfflineSales,1200); if (S.user.wajib) forcePw();
   } catch (x) {
     if (S.token) { $('#login').style.display = 'none'; const sp = $('#splash'); sp.style.display = 'grid'; sp.innerHTML = `<div style="text-align:center;padding:20px"><p style="margin-bottom:12px">Gagal terhubung: ${e(x.message)}</p><button class="btn p" onclick="location.reload()">Coba lagi</button></div>`; }
   }
@@ -194,7 +264,7 @@ function toggleSide(on) {
 }
 document.addEventListener('keydown', ev => { if (ev.key === 'Escape') toggleSide(false); });
 function buildNav() {
-  $('#nav').innerHTML = MENU.filter(m => !m[3] || isAdmin()).map(m => `<a data-p="${m[0]}" onclick="location.hash='${m[0]}'"><svg viewBox="0 0 24 24">${IC[m[2]]}</svg>${m[1]}</a>`).join('');
+  $('#nav').innerHTML = MENU.filter(m => !m[3] || isAdmin()).map(m => `<a data-p="${m[0]}" onmouseenter="prefetchPage('${m[0]}')" ontouchstart="prefetchPage('${m[0]}')" onclick="location.hash='${m[0]}'"><svg viewBox="0 0 24 24">${IC[m[2]]}</svg>${m[1]}</a>`).join('');
 }
 async function route() {
   if (!S.user) return;
@@ -205,14 +275,16 @@ async function route() {
   localStorage.setItem('mb_page', p); if (location.hash.slice(1) !== p) history.replaceState(null, '', '#' + p);
   document.querySelectorAll('nav a').forEach(a => a.classList.toggle('on', a.dataset.p === p));
   $('#title').textContent = mm[1]; $('#topAct').innerHTML = ''; toggleSide(false);
+  S.pg++;
   const v = $('#view'); const mb=$('#posMobileBar'); if(mb) mb.remove(); v.innerHTML = '<div class="empty">Memuat...</div>';
   try { await PAGES()[p](v); } catch (x) { v.innerHTML = `<div class="card empty">${e(x.message)}</div>`; }
 }
 window.onhashchange = route;
 
 /* ============ DASHBOARD ============ */
-async function pDashboard(v) {
-  const d = await api('dashboard'), A = isAdmin();
+function pDashboard(v) { return swr('dashboard', undefined, d => dashPaint(v, d)); }
+function dashPaint(v, d) {
+  const A = isAdmin();
   const seri = d.seri || [], mx = Math.max(...seri.map(x => x.total), 1);
   const HARI = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
   const BLN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -519,12 +591,11 @@ async function pPenjualan(v) {
       tglID(x.JatuhTempo), x.Kasir, { h: `<button class="btn s" data-receipt="${e(x.ID)}" onclick="strukLama(this.dataset.receipt)">Struk</button><button class="btn s" data-receipt="${e(x.ID)}" onclick="notaLama(this.dataset.receipt)">Nota</button>${x.Status === 'Piutang' ? `<button class="btn s p" onclick="lunasi('jual','${x.ID}',${x.Total - x.Bayar},load_pj)">Bayar</button>` : ''}${isAdmin() && x.Batal !== 'Y' ? `<button class="btn s" onclick="returForm('${x.ID}',load_pj)">Retur</button><button class="btn s d" onclick="batal('jual','${x.ID}',load_pj)">Batal</button>` : ''}`, c: 'act' }]),
       ['Total ' + ok.length + ' transaksi', '', '', sum(ok, 'Total'), sum(ok, 'Bayar'), '', '', '', '']);
   };
-  const load = async () => {
-    const r = await api('list', { sheet: 'Penjualan', from: $('#pjF').value, to: $('#pjT').value }); r.reverse();
-    window._pj = r;
+  const load = () => swr('list', { sheet: 'Penjualan', from: $('#pjF').value, to: $('#pjT').value }, r0 => {
+    const r = r0.slice().reverse(); window._pj = r;
     fillOpts($('#pjK'), r.map(x => x.Kasir), 'Semua kasir');
     draw();
-  };
+  });
   window.load_pj = load; $('#pjGo').onclick = () => load().catch(fail); quickBind('pj');
   ['#pjQ', '#pjS', '#pjM', '#pjK'].forEach(s => { $(s).oninput = $(s).onchange = draw; });
   $('#pjRs').onclick = () => { $('#pjQ').value = ''; $('#pjS').value = ''; $('#pjM').value = ''; $('#pjK').value = ''; draw(); };
@@ -557,11 +628,11 @@ async function pPembelian(v) {
       { h: `<button class="btn s" data-no="${e(x.No)}" data-tanggal="${e(x.Tanggal)}" onclick="detailBeli(this.dataset.no,this.dataset.tanggal)">Detail</button>${x.Status === 'Hutang' ? `<button class="btn s p" onclick="lunasi('beli','${x.ID}',${x.Total - x.Bayar},load_pb)">Bayar</button>` : ''}${x.Batal !== 'Y' ? `<button class="btn s" onclick="returBeliForm('${x.ID}',load_pb)">Retur</button><button class="btn s d" onclick="batal('beli','${x.ID}',load_pb)">Batal</button>` : ''}`, c: 'act' }]),
       ['Total ' + ok.length + ' nota', '', '', sum(ok, 'Total'), sum(ok, 'PPN'), sum(ok, 'Bayar'), '', '', '', '']);
   };
-  const load = async () => {
-    DATA = await api('list', { sheet: 'Pembelian', from: $('#pbF').value, to: $('#pbT').value }); DATA.reverse();
+  const load = () => swr('list', { sheet: 'Pembelian', from: $('#pbF').value, to: $('#pbT').value }, r => {
+    DATA = r.slice().reverse();
     fillOpts($('#pbSup'), DATA.map(x => x.Supplier), 'Semua supplier');
     draw();
-  };
+  });
   window.load_pb = load; $('#pbGo').onclick = () => load().catch(fail); quickBind('pb');
   ['#pbQ', '#pbS', '#pbSup'].forEach(s => { $(s).oninput = $(s).onchange = draw; });
   $('#pbRs').onclick = () => { $('#pbQ').value = ''; $('#pbS').value = ''; $('#pbSup').value = ''; draw(); };
@@ -605,9 +676,11 @@ async function beliForm(done) {
 
 /* ============ CRUD UMUM ============ */
 const _cr = {}, _cf = {};
-async function crud(v, cfg) {
+function crud(v, cfg) {
   const rg = cfg.range ? (_cr[cfg.sheet] = _cr[cfg.sheet] || { f: mStart(), t: today() }) : null;
-  const rows = await api('list', { sheet: cfg.sheet, ...(rg ? { from: rg.f, to: rg.t } : {}) });
+  return swr('list', { sheet: cfg.sheet, ...(rg ? { from: rg.f, to: rg.t } : {}) }, rows => crudPaint(v, cfg, rg, rows));
+}
+function crudPaint(v, cfg, rg, rows) {
   const A = isAdmin(), canEdit = A || cfg.kasir;
   if (cfg.sheet === 'Barang') S.barang = rows; if (cfg.sheet === 'Pelanggan') S.pelanggan = rows;
   const FL = cfg.filters || [], st = (_cf[cfg.sheet] = _cf[cfg.sheet] || { q: '', f: [] });
@@ -696,12 +769,12 @@ async function pMutasi(v) {
     $('#mtInfo').textContent = 'Menampilkan ' + L.length + ' dari ' + DATA.length + ' mutasi';
     $('#mtR').innerHTML = tbl(['Tanggal', 'Barang', 'Jenis', 'Qty', 'Stok Akhir', 'Ref', 'User', 'Ket'], L.map(x => [tglID(x.Tanggal) + ' ' + x.Waktu, x.Nama, x.Jenis, x.Qty, x.StokAkhir, x.Ref, x.User, x.Ket]));
   };
-  const load = async () => {
-    DATA = (await api('list', { sheet: 'Mutasi', from: $('#mtF').value, to: $('#mtT').value })).reverse();
+  const load = () => swr('list', { sheet: 'Mutasi', from: $('#mtF').value, to: $('#mtT').value }, r => {
+    DATA = r.slice().reverse();
     fillOpts($('#mtJ'), DATA.map(x => x.Jenis), 'Semua jenis');
     fillOpts($('#mtU'), DATA.map(x => x.User), 'Semua user');
     draw();
-  };
+  });
   $('#mtGo').onclick = () => load().catch(fail); quickBind('mt');
   ['#mtQ', '#mtJ', '#mtA', '#mtU'].forEach(s => { $(s).oninput = $(s).onchange = draw; });
   $('#mtRs').onclick = () => { $('#mtQ').value = ''; $('#mtJ').value = ''; $('#mtA').value = ''; $('#mtU').value = ''; draw(); };
@@ -721,11 +794,11 @@ async function pServis(v) {
       L.map(x => [tglID(x.Tanggal), x.PlatNomor, x.Pelanggan, x.Keluhan, x.Pekerjaan, x.Montir, x.BiayaJasa, x.Komisi, tglID(x.JadwalBerikut)]),
       ['TOTAL ' + L.length + ' servis', '', '', '', '', '', sum(L, 'BiayaJasa'), sum(L, 'Komisi'), '']);
   };
-  const load = async () => {
-    DATA = await api('serviceList', { from: $('#svF').value, to: $('#svT').value });
+  const load = () => swr('serviceList', { from: $('#svF').value, to: $('#svT').value }, r => {
+    DATA = r;
     fillOpts($('#svM'), DATA.map(x => x.Montir), 'Semua montir');
     draw();
-  };
+  });
   $('#svGo').onclick = () => load().catch(fail); quickBind('sv');
   ['#svQ', '#svM', '#svJ'].forEach(s => { $(s).oninput = $(s).onchange = draw; });
   $('#svRs').onclick = () => { $('#svQ').value = ''; $('#svM').value = ''; $('#svJ').value = ''; draw(); };
@@ -788,7 +861,7 @@ async function pLaporan(v) {
     cur = { heads, rows, name: 'laporan-' + TABS[tab].replace(/\W+/g, '-').toLowerCase() };
     $('#lpR').innerHTML = `<h3>${TABS[tab]}</h3><p class="note" style="margin-bottom:10px">${tab === 4 ? 'Posisi stok saat ini' : per}</p>` + tbl(heads, rows, foot, true);
   };
-  const load = async () => { D = await api('report', { from: $('#lpF').value, to: $('#lpT').value }); draw(); };
+  const load = () => swr('report', { from: $('#lpF').value, to: $('#lpT').value }, r => { D = r; draw(); });
   $('#lpGo').onclick = () => load().catch(fail); $('#lpCsv').onclick = () => cur && csv(cur.name, cur.heads, cur.rows); draw(); load().catch(fail);
 }
 
@@ -882,12 +955,12 @@ async function pRetur(v) {
       L.map(x => [x.No, tglID(x.Tanggal) + ' ' + x.Waktu, x.NoNota, x.Pelanggan, x.Total, x.PotongPiutang, x.UangKembali, x.Alasan, { h: `<button class="btn s" onclick="detailRetur('${x.No}','${x.Tanggal}')">Detail</button>`, c: 'act' }]),
       ['TOTAL', '', '', '', sum(L, 'Total'), sum(L, 'PotongPiutang'), sum(L, 'UangKembali'), '', '']);
   };
-  const load = async () => {
-    DATA = (await api('list', { sheet: 'Retur', from: $('#rtF').value, to: $('#rtT').value })).reverse();
+  const load = () => swr('list', { sheet: 'Retur', from: $('#rtF').value, to: $('#rtT').value }, r => {
+    DATA = r.slice().reverse();
     fillOpts($('#rtP'), DATA.map(x => x.Pelanggan), 'Semua pelanggan');
     fillOpts($('#rtU'), DATA.map(x => x.User), 'Semua user');
     draw();
-  };
+  });
   window.detailRetur = async (no, t) => {
     const d = (await api('list', { sheet: 'DetailRetur', from: t, to: t })).filter(x => x.NoRetur === no);
     modal('Detail ' + no, tbl(['Barang', 'Qty', 'Harga', 'Subtotal', 'Kondisi'], d.map(x => [x.Nama, x.Qty, x.Harga, x.Subtotal, x.Kondisi])));
@@ -980,12 +1053,12 @@ async function pReturBeli(v) {
       L.map(x => [x.No, tglID(x.Tanggal) + ' ' + x.Waktu, x.NoNota, x.Supplier, x.Total, x.PPN, x.PotongHutang, x.UangKembali, x.Alasan, { h: `<button class="btn s" onclick="detailReturBeli('${x.No}','${x.Tanggal}')">Detail</button>`, c: 'act' }]),
       ['TOTAL', '', '', '', sum(L, 'Total'), sum(L, 'PPN'), sum(L, 'PotongHutang'), sum(L, 'UangKembali'), '', '']);
   };
-  const load = async () => {
-    DATA = (await api('list', { sheet: 'ReturBeli', from: $('#rbF').value, to: $('#rbT').value })).reverse();
+  const load = () => swr('list', { sheet: 'ReturBeli', from: $('#rbF').value, to: $('#rbT').value }, r => {
+    DATA = r.slice().reverse();
     fillOpts($('#rbSp'), DATA.map(x => x.Supplier), 'Semua supplier');
     fillOpts($('#rbU'), DATA.map(x => x.User), 'Semua user');
     draw();
-  };
+  });
   window.detailReturBeli = async (no, t) => {
     const d = (await api('list', { sheet: 'DetailReturBeli', from: t, to: t })).filter(x => x.NoRetur === no);
     modal('Detail ' + no, tbl(['Barang', 'Qty', 'Harga', 'Subtotal'], d.map(x => [x.Nama, x.Qty, x.Harga, x.Subtotal])));
