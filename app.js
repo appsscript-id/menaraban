@@ -413,12 +413,12 @@ const NOTA_CSS = `.np{box-sizing:border-box;width:210mm;height:148mm;padding:6mm
 .np th,.np td{border:.3mm solid #000;font-size:9pt;height:5.65mm;line-height:1;padding:0 1.6mm;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .np th{font-weight:700;text-align:center;height:6.4mm;font-size:10pt}
 .np td.r{text-align:right}.np td.c{text-align:center}
-.np .ft{display:flex;justify-content:space-between;align-items:flex-start;margin-top:0}
-.np .nb{font-size:10pt;line-height:1.3;padding-left:1mm;margin-top:1.6mm}
+.np tfoot td{height:9mm;padding:0 1.6mm;font-size:10.5pt;font-weight:700;text-align:right;overflow:hidden;white-space:nowrap}
+.np tfoot td.fl{border-left:hidden;border-bottom:hidden;padding:0;font-weight:400}
+.np tfoot td.fl>div{display:flex;justify-content:space-between;align-items:center;height:9mm;padding:0 3mm 0 1mm;line-height:1.25;font-size:10pt}
+.np .nb{text-align:left}
 .np .nb span{display:block;padding-left:9mm}
-.np .jm{display:flex;align-items:stretch;font-weight:700;font-size:10pt;height:8.5mm}
-.np .jm span{display:flex;align-items:center;padding-right:3mm}
-.np .jm div{width:32.45mm;height:100%;border:.35mm solid #000;border-top:0;font-size:10.5pt;display:flex;align-items:center;justify-content:flex-end;padding-right:1.6mm;white-space:nowrap}
+.np .jr{font-weight:700}
 .np .sg{display:flex;justify-content:space-between;font-size:10pt;margin-top:3mm;padding:0 11mm 0 12mm}`;
 
 function notaPageHtml(s, rows, pi, np) {
@@ -432,8 +432,7 @@ function notaPageHtml(s, rows, pi, np) {
 <div class="rt"><div class="ln">Tanggal,<span class="dl">${e(tglID(s.Tanggal))}</span></div><div class="ln">Tuan / Toko,<span class="dl">${e(s.Pelanggan)}</span></div><div class="ln"><span class="dl">${e(s.Catatan || '')}</span></div><div class="ln"><span class="dl"></span></div></div></div>
 <div class="nno">NOTA No: <span class="dl">${e(s.No)}</span>${np > 1 ? `<span class="pg">Hal. ${pi + 1}/${np}</span>` : ''}</div>
 <div class="thick"></div>
-<table><colgroup><col style="width:19.3%"><col style="width:45.6%"><col style="width:18.2%"><col style="width:16.9%"></colgroup><thead><tr><th>Banyaknya</th><th>Nama Barang</th><th>Harga Satuan</th><th>Jumlah</th></tr></thead><tbody>${tr}</tbody></table>
-<div class="ft"><div class="nb">NB: Barang yang sudah dibeli tidak dapat ditukar /<span>dikembalikan kecuali ada perjanjian.</span></div><div class="jm"><span>Jumlah Rp.</span><div>${last ? nf(s.Total) : ''}</div></div></div>
+<table><colgroup><col style="width:19.3%"><col style="width:45.6%"><col style="width:18.2%"><col style="width:16.9%"></colgroup><thead><tr><th>Banyaknya</th><th>Nama Barang</th><th>Harga Satuan</th><th>Jumlah</th></tr></thead><tbody>${tr}</tbody><tfoot><tr><td class="fl" colspan="3"><div><div class="nb">NB: Barang yang sudah dibeli tidak dapat ditukar /<span>dikembalikan kecuali ada perjanjian.</span></div><div class="jr">Jumlah Rp.</div></div></td><td>${last ? nf(s.Total) : ''}</td></tr></tfoot></table>
 <div class="sg"><span>Penerima,</span><span>Hormat kami,</span></div>
 </div>`;
 }
