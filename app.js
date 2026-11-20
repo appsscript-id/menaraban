@@ -978,7 +978,7 @@ async function pTutup(v) {
     const M = ['Tunai', 'Transfer', 'QRIS', 'Debit'], masuk = (h.jual.Tunai || 0) + (h.lunas.Tunai || 0);
     const rows = M.map(m => [m, h.jual[m] || 0, h.lunas[m] || 0, (h.jual[m] || 0) + (h.lunas[m] || 0)]);
     const tot = i => rows.reduce((p, c) => p + c[i], 0);
-    if(r.closed){ $('#tkR').innerHTML = `<div class="card"><h3>Kasir sudah ditutup</h3><p>Tanggal ${tglID(tgl)} telah ditutup oleh ${e(r.closing.Kasir)} pada ${e(r.closing.Waktu)}.</p><p>Uang fisik: <b>${rp(r.closing.Hitung)}</b> · Selisih: <b>${rp(r.closing.Selisih)}</b></p></div><div class="card"><h3>Riwayat tutup kasir</h3>${tbl(['Tanggal','Jam','Kasir','Modal','Seharusnya','Hitung','Selisih','Catatan'],r.riwayat.map(x=>[tglID(x.Tanggal),x.Waktu,x.Kasir,x.Modal,x.Seharusnya,x.Hitung,x.Selisih,x.Catatan]))}</div>`; return; }
+    if(r.closed){ $('#tkR').innerHTML = `<div class="card"><h3>Kasir sudah ditutup</h3><p>Tanggal ${tglID(tgl)} telah ditutup oleh ${e(r.closing.Kasir)} pada ${e(r.closing.Waktu)}.</p><p>Uang fisik: <b>${rp(r.closing.Hitung)}</b> · Selisih: <b>${rp(r.closing.Selisih)}</b></p>${isAdmin() ? '<div class="bar" style="margin-top:12px"><button class="btn d" id="tkReopen">Buka Kembali</button></div><p class="note">Untuk koreksi (nota terlewat, uang salah hitung). Alasan wajib dan tercatat di log.</p>' : '<p class="note" style="margin-top:8px">Perlu koreksi? Hubungi Admin untuk membuka kembali.</p>'}</div><div class="card"><h3>Riwayat tutup kasir</h3>${tbl(['Tanggal','Jam','Kasir','Modal','Seharusnya','Hitung','Selisih','Catatan'],r.riwayat.map(x=>[tglID(x.Tanggal),x.Waktu,x.Kasir,x.Modal,x.Seharusnya,x.Hitung,x.Selisih,x.Catatan]))}</div>`; if ($('#tkReopen')) $('#tkReopen').onclick = () => tkReopen(tgl, () => load().catch(fail)); tkLog(); return; }
      $('#tkR').innerHTML = `<div class="stats"><div class="st"><small>Jumlah nota</small><b>${h.jml}</b><i>tidak termasuk yang dibatalkan</i></div><div class="st a"><small>Total penjualan</small><b>${rp(h.total)}</b><i>piutang baru ${rp(h.piutang)}</i></div><div class="st r"><small>Retur (uang kembali tunai)</small><b>${rp(h.returTunai)}</b></div><div class="st r"><small>Pengeluaran</small><b>${rp(h.pengeluaran)}</b></div></div>
     <div class="grid2"><div class="card"><h3>Penerimaan per metode</h3>${tbl(['Metode', 'Penjualan', 'Pelunasan piutang', 'Total'], rows, ['TOTAL', tot(1), tot(2), tot(3)])}</div>
     <div class="card"><h3>Hitung uang laci</h3><div class="fg"><label class="f"><span>Modal awal laci (Rp)</span><input class="num" inputmode="numeric" id="tkM" placeholder="0"></label><label class="f"><span>Uang fisik di laci (Rp)</span><input class="num" inputmode="numeric" id="tkH" placeholder="hasil hitung"></label>
@@ -997,8 +997,30 @@ async function pTutup(v) {
       ev.target.disabled = true;
       try { await api('tutupSave', { tanggal: tgl, modal: unf($('#tkM').value), hitung: unf($('#tkH').value), catatan: $('#tkC').value }); toast('Tutup kasir tersimpan'); load(); } catch (x) { fail(x); ev.target.disabled = false; }
     };
+    tkLog();
   };
   $('#tkGo').onclick = () => load().catch(fail); load().catch(fail);
+}
+
+// Khusus Admin: buka kembali tutup kasir satu tanggal (alasan wajib, tercatat di sheet LogTutupKas)
+function tkReopen(tgl, done) {
+  modal('Buka Kembali Tutup Kasir ' + tglID(tgl),
+    `<p class="note" style="margin-bottom:10px">Tutup kasir tanggal ini akan dihapus dari daftar aktif (data lamanya tersimpan di log). Setelah dibuka, transaksi, retur, pelunasan dan koreksi di tanggal ini bisa dilakukan lagi. Setelah selesai, lakukan tutup kasir ulang.</p><label class="f"><span>Alasan (wajib)</span><input id="rkA" placeholder="mis. ada nota lupa dientry"></label>`,
+    async () => {
+      const a = $('#rkA').value.trim();
+      if (a.length < 5) throw new Error('Alasan wajib diisi (minimal 5 karakter)');
+      await api('reopenDay', { tanggal: tgl, alasan: a });
+      toast('Tutup kasir ' + tglID(tgl) + ' dibuka kembali');
+      done();
+    }, 'Buka Kembali');
+}
+async function tkLog() {
+  if (!isAdmin() || !$('#tkR')) return;
+  try {
+    const L = (await api('list', { sheet: 'LogTutupKas' }, true)).slice().reverse().slice(0, 30);
+    if (!L.length || !$('#tkR')) return;
+    $('#tkR').insertAdjacentHTML('beforeend', `<div class="card"><h3>Riwayat buka kembali (Admin)</h3>${tbl(['Dibuka', 'Tanggal', 'Admin', 'Alasan'], L.map(x => [x.Dibuka, tglID(x.Tanggal), x.Admin, x.Alasan]))}</div>`);
+  } catch (_) {}
 }
 
 async function loadBackup() {
