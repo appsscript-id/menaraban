@@ -402,9 +402,9 @@ const NOTA_CSS = `.np{box-sizing:border-box;width:210mm;height:148mm;padding:6mm
 .np .ttl{font:700 29pt/1 'Times New Roman',Times,serif;letter-spacing:.3px}
 .np .sub{font-size:9pt;line-height:1.32;margin-top:1.2mm}
 .np .sub small{font-size:8pt;display:block}
-.np .rt{width:84mm;font-size:9pt;flex:none;padding-top:2mm}
-.np .rt .ln{display:flex;align-items:flex-end;gap:1mm;height:6.2mm;white-space:nowrap}
-.np .dl{flex:1;border-bottom:1px dotted #000;min-width:0;overflow:hidden;text-overflow:ellipsis;padding-left:1mm;height:4.6mm;line-height:4.4mm}
+.np .rt{width:64mm;font-size:8pt;flex:none;padding-top:2.5mm}
+.np .rt .ln{display:flex;align-items:flex-end;gap:1mm;height:5.4mm;white-space:nowrap}
+.np .dl{flex:1;border-bottom:1px dotted #000;min-width:0;overflow:hidden;text-overflow:ellipsis;padding-left:1mm;height:4.2mm;line-height:4mm}
 .np .nno{font:700 12pt Arial,sans-serif;margin:3mm 0 1.2mm;display:flex;align-items:flex-end;gap:2mm}
 .np .nno .dl{flex:none;width:62mm;height:5.2mm;font:700 10pt Arial;line-height:5mm}
 .np .nno .pg{font:400 8pt Arial;margin-left:auto}
@@ -413,12 +413,12 @@ const NOTA_CSS = `.np{box-sizing:border-box;width:210mm;height:148mm;padding:6mm
 .np th,.np td{border:.3mm solid #000;font-size:9pt;height:5.65mm;line-height:1;padding:0 1.6mm;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .np th{font-weight:700;text-align:center;height:6.4mm;font-size:10pt}
 .np td.r{text-align:right}.np td.c{text-align:center}
-.np .ft{display:flex;justify-content:space-between;margin-top:1mm}
-.np .nb{font-size:10pt;line-height:1.3;padding-left:1mm;margin-top:1.3mm}
+.np .ft{display:flex;justify-content:space-between;align-items:flex-start;margin-top:0}
+.np .nb{font-size:10pt;line-height:1.3;padding-left:1mm;margin-top:1.6mm}
 .np .nb span{display:block;padding-left:9mm}
-.np .jm{display:flex;align-items:flex-start;gap:3mm;font-weight:700;font-size:10pt}
-.np .jm span{padding-top:2mm}
-.np .jm div{width:36mm;height:9.5mm;border:.3mm solid #000;border-top:0;font-size:11pt;display:flex;align-items:center;justify-content:flex-end;padding-right:2mm}
+.np .jm{display:flex;align-items:stretch;font-weight:700;font-size:10pt;height:8.5mm}
+.np .jm span{display:flex;align-items:center;padding-right:3mm}
+.np .jm div{width:32.45mm;height:100%;border:.35mm solid #000;border-top:0;font-size:10.5pt;display:flex;align-items:center;justify-content:flex-end;padding-right:1.6mm;white-space:nowrap}
 .np .sg{display:flex;justify-content:space-between;font-size:10pt;margin-top:3mm;padding:0 11mm 0 12mm}`;
 
 function notaPageHtml(s, rows, pi, np) {
