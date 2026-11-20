@@ -357,7 +357,7 @@ async function saleSave() {
   if (bayarAktual < t.total && (!p.pel || p.pel === 'Umum')) return toast('Piutang wajib memilih pelanggan (bukan Umum)', true);
   $('#bSave').disabled = true;
   try {
-    const pays=a2>0?[{metode:$('#pM').value,jumlah:a1},{metode:$('#pM2').value,jumlah:a2}]:[]; const r = await api('saveSale', { items: S.cart.map(c => ({ id: c.id, nama: c.nama, qty: c.qty, harga: c.harga, diskon: c.diskon, dot:c.dot, garansiBulan:c.garansiBulan, montir:c.montir, komisi:c.komisi })), diskon: unf(p.diskon), bayar: bayarAktual, payments:pays, ppnMode:$('#pPpn')?$('#pPpn').value:'none', ppnRate:ppnRate(), jatuhTempo:$('#pDue')?$('#pDue').value:'', platNomor:$('#pPlat')?$('#pPlat').value:'', no: p.noManual ? String(p.no || '').trim() : '', pelanggan: p.pel || 'Umum', metode: p.metode || 'Tunai', catatan: p.cat || '' });
+    const pays=a2>0?[{metode:$('#pM').value,jumlah:a1},{metode:$('#pM2').value,jumlah:a2}]:[]; const r = await api('saveSale', { items: S.cart.map(c => ({ id: c.id, nama: c.nama, qty: c.qty, harga: c.harga, diskon: c.diskon, dot:c.dot, garansiBulan:c.garansiBulan, montir:c.montir, komisi:c.komisi, platNomor:c.platNomor })), diskon: unf(p.diskon), bayar: bayarAktual, payments:pays, ppnMode:$('#pPpn')?$('#pPpn').value:'none', ppnRate:ppnRate(), jatuhTempo:$('#pDue')?$('#pDue').value:'', platNomor:$('#pPlat')?$('#pPlat').value:'', no: p.noManual ? String(p.no || '').trim() : '', pelanggan: p.pel || 'Umum', metode: p.metode || 'Tunai', catatan: p.cat || '' });
     if(r.queued){toast('Transaksi disimpan di antrean offline. Akan dikirim saat internet kembali.');S.cart=[];S.pos={};persistCart();cartRender();return;}
     toast('Transaksi ' + r.sale.No + ' tersimpan');
     S.cart.forEach(c => { if (!c.jasa) { const b = S.barang.find(x => x.ID === c.id); if (b) b.Stok -= c.qty; } });
@@ -674,7 +674,7 @@ async function pLaporan(v) {
     } else if (tab === 10) {
       heads = ['No', 'Tanggal', 'Pelanggan', 'DPP', 'PPN Keluaran', 'Total']; rows = J.map(x => [x.No, tglID(x.Tanggal), x.Pelanggan, x.DPP || x.Total, x.PPN || 0, x.Total]); foot = ['TOTAL', '', '', sum(J,'DPP'), sum(J,'PPN'), sum(J,'Total')];
     } else {
-      const comm=DJ.filter(x=>num(x.Komisi)>0); heads=['Tanggal','No Nota','Barang / Jasa','Montir','Qty','Komisi']; rows=comm.map(x=>[tglID(x.Tanggal),x.NoNota,x.Nama,x.Montir,x.Qty,x.Komisi]); foot=['TOTAL','','','', '',sum(comm,'Komisi')];
+      const comm=DJ.filter(x=>(+x.Komisi||0)>0); heads=['Tanggal','No Nota','Barang / Jasa','Montir','Qty','Komisi']; rows=comm.map(x=>[tglID(x.Tanggal),x.NoNota,x.Nama,x.Montir,x.Qty,x.Komisi]); foot=['TOTAL','','','', '',sum(comm,'Komisi')];
     }
     cur = { heads, rows, name: 'laporan-' + TABS[tab].replace(/\W+/g, '-').toLowerCase() };
     $('#lpR').innerHTML = `<h3>${TABS[tab]}</h3><p class="note" style="margin-bottom:10px">${tab === 4 ? 'Posisi stok saat ini' : per}</p>` + tbl(heads, rows, foot, true);
