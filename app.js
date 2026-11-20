@@ -421,6 +421,10 @@ const NOTA_CSS = `.np{box-sizing:border-box;width:210mm;height:148mm;padding:6mm
 .np .jr{font-weight:700}
 .np .sg{display:flex;justify-content:space-between;font-size:10pt;margin-top:3mm;padding:0 11mm 0 12mm}`;
 
+function notaTgl(t) {
+  const B = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'], p = String(t || '').split('-');
+  return p.length === 3 && B[+p[1] - 1] ? (+p[2]) + ' ' + B[+p[1] - 1] + ' ' + p[0] : tglID(t);
+}
 function notaPageHtml(s, rows, pi, np) {
   const last = pi === np - 1;
   const fill = rows.slice();
@@ -429,7 +433,7 @@ function notaPageHtml(s, rows, pi, np) {
   return `<div class="np">
 <div class="hd1"><div><div class="ttl">MENARA BAN</div>
 <div class="sub">Jual Beli Ban Mobil &amp; Velg Racing (Import &amp; Lokal)<br>Jl. Demak No. 353 Surabaya<small>(150 meter setelah masjid Demak / Sebelah BRI unit Demak)</small>Telp. (031) 3554726 Fax. 3556596</div></div>
-<div class="rt"><div class="ln">Tanggal,<span class="dl">${e(tglID(s.Tanggal))}</span></div><div class="ln">Tuan / Toko,<span class="dl">${e(s.Pelanggan)}</span></div><div class="ln"><span class="dl">${e(s.Catatan || '')}</span></div><div class="ln"><span class="dl"></span></div></div></div>
+<div class="rt"><div class="ln">Tanggal,<span class="dl">${e(notaTgl(s.Tanggal))}</span></div><div class="ln">Tuan / Toko,<span class="dl">${e(s.Pelanggan)}</span></div><div class="ln"><span class="dl">${e(s.Catatan || '')}</span></div><div class="ln"><span class="dl"></span></div></div></div>
 <div class="nno">NOTA No: <span class="dl">${e(s.No)}</span>${np > 1 ? `<span class="pg">Hal. ${pi + 1}/${np}</span>` : ''}</div>
 <div class="thick"></div>
 <table><colgroup><col style="width:19.3%"><col style="width:45.6%"><col style="width:18.2%"><col style="width:16.9%"></colgroup><thead><tr><th>Banyaknya</th><th>Nama Barang</th><th>Harga Satuan</th><th>Jumlah</th></tr></thead><tbody>${tr}</tbody><tfoot><tr><td class="fl" colspan="3"><div><div class="nb">NB: Barang yang sudah dibeli tidak dapat ditukar /<span>dikembalikan kecuali ada perjanjian.</span></div><div class="jr">Jumlah Rp.</div></div></td><td>${last ? nf(s.Total) : ''}</td></tr></tfoot></table>
