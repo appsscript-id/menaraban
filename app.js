@@ -35,6 +35,15 @@ async function api(action, data) {
     const j = await r.json();
     if (!j.ok) { if (j.error === 'SESSION') logout(true); throw new Error(j.msg); }
     return j.data;
+  } catch (err) {
+    if (action === 'saveSale' && (err instanceof TypeError || !navigator.onLine)) {
+      const q = JSON.parse(localStorage.getItem('mb_offline_sales') || '[]');
+      const clientId = 'MB-' + Date.now() + '-' + Math.floor(Math.random()*1e6);
+      q.push({clientId, payload:data, queuedAt:new Date().toISOString()});
+      localStorage.setItem('mb_offline_sales', JSON.stringify(q));
+      return {queued:true, clientId};
+    }
+    throw err;
   } finally { if (--busyN === 0) { $('#busy').classList.remove('on'); document.body.classList.remove('wait'); } }
 }
 function toast(m, err) {
@@ -152,7 +161,7 @@ async function boot() {
     $('#login').style.display = 'none'; $('#splash').style.display = 'none'; $('#app').style.display = 'block';
     $('#sName').textContent = S.cfg.nama_toko || 'Menara Ban'; document.title = S.cfg.nama_toko || 'Menara Ban';
     $('#meName').textContent = S.user.nama; $('#meRole').textContent = S.user.role === 'admin' ? 'Administrator' : 'Kasir';
-    buildNav(); route(); if (S.user.wajib) forcePw();
+    buildNav(); route(); setTimeout(syncOfflineSales,1200); if (S.user.wajib) forcePw();
   } catch (x) {
     if (S.token) { $('#login').style.display = 'none'; const sp = $('#splash'); sp.style.display = 'grid'; sp.innerHTML = `<div style="text-align:center;padding:20px"><p style="margin-bottom:12px">Gagal terhubung: ${e(x.message)}</p><button class="btn p" onclick="location.reload()">Coba lagi</button></div>`; }
   }
@@ -177,9 +186,9 @@ const MENU = [
   ['dashboard', 'Dashboard', 'dash'], ['kasir', 'Kasir / Penjualan', 'cart'], ['penjualan', 'Riwayat Penjualan', 'list'], ['retur', 'Retur Penjualan', 'undo', 1], ['tutup', 'Tutup Kasir', 'lock'],
   ['pembelian', 'Pembelian', 'truck', 1], ['returbeli', 'Retur Pembelian', 'undo', 1], ['barang', 'Barang & Stok', 'box'], ['mutasi', 'Mutasi Stok', 'swap', 1],
   ['pelanggan', 'Pelanggan', 'users'], ['supplier', 'Supplier', 'users', 1], ['pengeluaran', 'Pengeluaran', 'wallet', 1],
-  ['laporan', 'Laporan', 'chart', 1], ['pengaturan', 'Pengaturan', 'gear', 1]
+  ['laporan', 'Laporan', 'chart', 1], ['pengaturan', 'Pengaturan', 'gear', 1], ['servis', 'Riwayat Servis', 'truck']
 ];
-const PAGES = () => ({ dashboard: pDashboard, kasir: pKasir, penjualan: pPenjualan, pembelian: pPembelian, barang: pBarang, mutasi: pMutasi, pelanggan: pPelanggan, supplier: pSupplier, pengeluaran: pPengeluaran, laporan: pLaporan, pengaturan: pPengaturan, retur: pRetur, tutup: pTutup, returbeli: pReturBeli });
+const PAGES = () => ({ dashboard: pDashboard, kasir: pKasir, penjualan: pPenjualan, pembelian: pPembelian, barang: pBarang, mutasi: pMutasi, pelanggan: pPelanggan, supplier: pSupplier, pengeluaran: pPengeluaran, laporan: pLaporan, pengaturan: pPengaturan, retur: pRetur, tutup: pTutup, returbeli: pReturBeli, servis: pServis });
 function toggleSide(on) {
   const v = on === undefined ? !$('#side').classList.contains('on') : on;
   $('#side').classList.toggle('on', v); $('#scrim').classList.toggle('on', v);
@@ -289,7 +298,7 @@ function prodList() {
 function addCart(id) {
   const b = S.barang.find(x => x.ID === id), j = b.Kategori === 'Jasa', c = S.cart.find(x => x.id === id);
   if (!j && (c ? c.qty + 1 : 1) > b.Stok) return toast('Stok ' + b.Nama + ' tidak cukup', true);
-  if (c) c.qty++; else S.cart.push({ id, nama: b.Nama, uk: b.Ukuran, qty: 1, harga: b.HargaJual, diskon: 0, jasa: j, stok: b.Stok });
+  if (c) c.qty++; else { const tier=S.pos.tier||'eceran'; const harga=tier==='grosir'&&b.HargaGrosir?b.HargaGrosir:tier==='bengkel'&&b.HargaBengkel?b.HargaBengkel:b.HargaJual; S.cart.push({ id, nama: b.Nama, uk: b.Ukuran, qty: 1, harga, diskon: 0, jasa: j, stok: b.Stok, dot:'', garansiBulan:0, montir:'', komisi:0 }); }
   persistCart(); cartRender();
 }
 function cartSet(i, k, val) {
@@ -297,11 +306,18 @@ function cartSet(i, k, val) {
   if (k === 'qty' && !c.jasa && val > c.stok) { toast('Stok hanya ' + c.stok, true); val = c.stok; }
   c[k] = val; if (k === 'qty' && val <= 0) S.cart.splice(i, 1); persistCart(); cartRender();
 }
+function itemExtra(i){
+  const c=S.cart[i];
+  modal('Detail Barang / Jasa',`<div class="fg"><label class="f"><span>Kode DOT ban</span><input id="ixDot" value="${e(c.dot||'')}" placeholder="mis. 2426"></label><label class="f"><span>Garansi (bulan)</span><input id="ixGar" class="num" value="${nf(c.garansiBulan||0)}"></label><label class="f"><span>Plat nomor</span><input id="ixPlat" value="${e(c.platNomor||'')}"></label><label class="f"><span>Montir</span><input id="ixMontir" value="${e(c.montir||'')}"></label><label class="f"><span>Komisi montir (Rp)</span><input id="ixKom" class="num" value="${nf(c.komisi||0)}"></label></div>`,async()=>{c.dot=$('#ixDot').value;c.garansiBulan=unf($('#ixGar').value);c.platNomor=$('#ixPlat').value;c.montir=$('#ixMontir').value;c.komisi=unf($('#ixKom').value);persistCart();});
+}
 function cartTotals() {
   const sub = S.cart.reduce((p, c) => p + Math.max(0, c.qty * c.harga - c.diskon), 0);
-  const total = Math.max(0, sub - unf(S.pos.diskon));
+  const net = Math.max(0, sub - unf(S.pos.diskon));
+  const mode = $('#pPpn') ? $('#pPpn').value : 'none';
+  const pp = ppnCalc(net, mode);
+  const total = pp.total;
   const bayar = S.pos.bayar === '' || S.pos.bayar === undefined ? total : unf(S.pos.bayar);
-  return { sub, total, bayar };
+  return { sub, net, ppn:pp.ppn, total, bayar };
 }
 function cartCalc() {
   const t = cartTotals();
@@ -312,22 +328,22 @@ function cartCalc() {
 function cartRender() {
   const p = S.pos, el = $('#cart'); if (!el) return;
   persistCart();
-  el.innerHTML = `<h3>Keranjang</h3>${S.cart.length ? S.cart.map((c, i) => `<div class="ci"><div><b>${e(c.nama)}</b><small>${e(c.uk)}</small></div><input class="num" inputmode="numeric" value="${nf(c.qty)}" onchange="cartSet(${i},'qty',this.value)" title="Qty"><input class="num" inputmode="numeric" value="${nf(c.harga)}" onchange="cartSet(${i},'harga',this.value)" title="Harga satuan"><input class="dk num" inputmode="numeric" value="${nf(c.diskon)}" onchange="cartSet(${i},'diskon',this.value)" title="Diskon (Rp)" placeholder="Disk."><button class="x" onclick="S.cart.splice(${i},1);cartRender()" title="Hapus">×</button></div>`).join('') + '<p class="note" style="margin-top:6px">Kolom: Qty · Harga satuan · Diskon item (Rp)</p>' : '<p class="empty">Klik barang di sebelah kiri untuk menambah.</p>'}
+  el.innerHTML = `<h3>Keranjang</h3><div class="bar"><label>Jenis harga <select id="pTier"><option value="eceran">Eceran</option><option value="grosir">Grosir</option><option value="bengkel">Bengkel</option></select></label></div>${S.cart.length ? S.cart.map((c, i) => `<div class="ci"><div><b>${e(c.nama)}</b><small>${e(c.uk)}</small></div><input class="num" inputmode="numeric" value="${nf(c.qty)}" onchange="cartSet(${i},'qty',this.value)" title="Qty"><input class="num" inputmode="numeric" value="${nf(c.harga)}" onchange="cartSet(${i},'harga',this.value)" title="Harga satuan"><input class="dk num" inputmode="numeric" value="${nf(c.diskon)}" onchange="cartSet(${i},'diskon',this.value)" title="Diskon (Rp)" placeholder="Disk."><button class="btn s" onclick="itemExtra(${i})" title="DOT, garansi, montir">Detail</button><button class="x" onclick="S.cart.splice(${i},1);cartRender()" title="Hapus">×</button></div>`).join('') + '<p class="note" style="margin-top:6px">Kolom: Qty · Harga satuan · Diskon item (Rp)</p>' : '<p class="empty">Klik barang di sebelah kiri untuk menambah.</p>'}
   <div class="sum"><div class="row"><span>Subtotal</span><b id="tSub"></b></div>
   <div class="row"><span>Diskon nota (Rp)</span><input class="num" inputmode="numeric" id="pD" value="${p.diskon || ''}" placeholder="0"></div>
   <div class="row"><span>Total</span><span class="tot" id="tTot"></span></div>
   <div class="row"><span>No. Nota</span><span class="pw"><input id="pN" value="${e(p.noManual ? p.no : S.nextNo)}" style="width:150px;text-align:left"><button class="btn" onclick="noAuto()" title="Kembali ke nomor otomatis">↺</button></span></div>
   <div class="note" style="text-align:right">Otomatis. Ketik untuk mengganti dengan nomor manual.</div>
   <div class="row"><span>Pelanggan</span><span class="pw"><select id="pP" style="width:150px"><option>Umum</option>${S.pelanggan.map(x => `<option ${p.pel === x.Nama ? 'selected' : ''}>${e(x.Nama)}</option>`).join('')}</select><button class="btn" onclick="newCust()">+</button></span></div>
-  <div class="row"><span>Metode</span><select id="pM">${['Tunai', 'Transfer', 'QRIS', 'Debit'].map(m => `<option ${p.metode === m ? 'selected' : ''}>${m}</option>`).join('')}</select></div>
+  <div class="row"><span>Metode 1</span><select id="pM">${['Tunai', 'Transfer', 'QRIS', 'Debit'].map(m => `<option ${p.metode === m ? 'selected' : ''}>${m}</option>`).join('')}</select></div><div class="row"><span>Nominal metode 1</span><input class="num" id="pPay1" inputmode="numeric" placeholder="kosong = seluruh pembayaran"></div><div class="row"><span>Metode 2 (opsional)</span><select id="pM2"><option value="">Tidak ada</option>${['Tunai','Transfer','QRIS','Debit'].map(m=>`<option>${m}</option>`).join('')}</select></div><div class="row"><span>Nominal metode 2</span><input class="num" id="pPay2" inputmode="numeric" placeholder="0"></div><div class="row"><span>PPN penjualan</span><select id="pPpn"><option value="none">Tanpa PPN</option><option value="exclude">Tambah PPN ${ppnRate()}%</option><option value="include">Harga termasuk PPN ${ppnRate()}%</option></select></div><div class="row"><span>Jatuh tempo</span><input type="date" id="pDue"></div><div class="row"><span>Plat nomor</span><input id="pPlat" placeholder="B 1234 XYZ"></div>
   <div class="row"><span>Dibayar (Rp)</span><span class="pw"><input class="num" inputmode="numeric" id="pB" value="${p.bayar ?? ''}" placeholder="kosong = lunas pas"></span></div>
   <div class="row"><span class="note">Kurang dari total = piutang</span><span id="tKem"></span></div>
   <input id="pC" placeholder="Catatan (plat nomor, dll)" value="${e(p.cat || '')}">
   <button class="btn a" style="padding:12px;font-size:16px" id="bSave" ${S.cart.length ? '' : 'disabled'} onclick="saleSave()">Simpan</button>
   ${S.cart.length ? '<button class="btn d" onclick="S.cart=[];S.pos={};cartRender()">Kosongkan</button>' : ''}</div>`;
   const sync = () => { p.diskon = $('#pD').value; p.bayar = $('#pB').value; p.pel = $('#pP').value; p.metode = $('#pM').value; p.cat = $('#pC').value; cartCalc(); };
-  ['#pD', '#pB', '#pP', '#pM', '#pC'].forEach(s => $(s).oninput = $(s).onchange = sync); cartCalc();
-  $('#pN').oninput = () => { p.no = $('#pN').value; p.noManual = true; };
+  ['#pD', '#pB', '#pP', '#pM', '#pC', '#pPay1', '#pPay2', '#pM2', '#pPpn', '#pDue', '#pPlat', '#pTier'].forEach(s => $(s).oninput = $(s).onchange = sync); cartCalc();
+  $('#pN').oninput = () => { p.no = $('#pN').value; p.noManual = true; }; $('#pTier').value=p.tier||'eceran'; $('#pTier').onchange=()=>{p.tier=$('#pTier').value;S.cart.forEach(c=>{const b=S.barang.find(x=>x.ID===c.id);if(b)c.harga=p.tier==='grosir'&&b.HargaGrosir?b.HargaGrosir:p.tier==='bengkel'&&b.HargaBengkel?b.HargaBengkel:b.HargaJual;});cartRender();};
 }
 function noAuto() { S.pos.noManual = false; S.pos.no = ''; cartRender(); }
 function newCust() {
@@ -338,10 +354,12 @@ function newCust() {
 }
 async function saleSave() {
   const t = cartTotals(), p = S.pos;
-  if (t.bayar < t.total && (!p.pel || p.pel === 'Umum')) return toast('Piutang wajib memilih pelanggan (bukan Umum)', true);
+  const a1=$('#pPay1')&&$('#pPay1').value!==''?unf($('#pPay1').value):t.bayar; const a2=$('#pPay2')?unf($('#pPay2').value):0; const bayarAktual=a1+a2;
+  if (bayarAktual < t.total && (!p.pel || p.pel === 'Umum')) return toast('Piutang wajib memilih pelanggan (bukan Umum)', true);
   $('#bSave').disabled = true;
   try {
-    const r = await api('saveSale', { items: S.cart.map(c => ({ id: c.id, nama: c.nama, qty: c.qty, harga: c.harga, diskon: c.diskon })), diskon: unf(p.diskon), bayar: t.bayar, no: p.noManual ? String(p.no || '').trim() : '', pelanggan: p.pel || 'Umum', metode: p.metode || 'Tunai', catatan: p.cat || '' });
+    const pays=a2>0?[{metode:$('#pM').value,jumlah:a1},{metode:$('#pM2').value,jumlah:a2}]:[]; const r = await api('saveSale', { items: S.cart.map(c => ({ id: c.id, nama: c.nama, qty: c.qty, harga: c.harga, diskon: c.diskon, dot:c.dot, garansiBulan:c.garansiBulan, montir:c.montir, komisi:c.komisi })), diskon: unf(p.diskon), bayar: bayarAktual, payments:pays, ppnMode:$('#pPpn')?$('#pPpn').value:'none', ppnRate:ppnRate(), jatuhTempo:$('#pDue')?$('#pDue').value:'', platNomor:$('#pPlat')?$('#pPlat').value:'', no: p.noManual ? String(p.no || '').trim() : '', pelanggan: p.pel || 'Umum', metode: p.metode || 'Tunai', catatan: p.cat || '' });
+    if(r.queued){toast('Transaksi disimpan di antrean offline. Akan dikirim saat internet kembali.');S.cart=[];S.pos={};persistCart();cartRender();return;}
     toast('Transaksi ' + r.sale.No + ' tersimpan');
     S.cart.forEach(c => { if (!c.jasa) { const b = S.barang.find(x => x.ID === c.id); if (b) b.Stok -= c.qty; } });
     S.cart = []; S.pos = {}; persistCart(); S.nextNo = r.nextNo; prodList(); cartRender();
@@ -352,7 +370,7 @@ function receiptBody(s, items) {
   const c = S.cfg, L = (a, b) => `<div class="l"><span>${a}</span><span>${b}</span></div>`;
   return `<h3>${e(c.nama_toko)}</h3><p>${e(c.alamat)}</p><p>${e(c.telp)}</p><hr>${L('No', e(s.No))}${L('Tgl', tglID(s.Tanggal) + ' ' + s.Waktu)}${L('Kasir', e(s.Kasir))}${L('Pelanggan', e(s.Pelanggan))}<hr>
   ${items.map(i => `<div>${e(i.Nama)}</div>${L(nf(i.Qty) + ' x ' + nf(i.Harga) + (i.Diskon ? ' (-' + nf(i.Diskon) + ')' : ''), nf(i.Subtotal))}`).join('')}<hr>
-  ${L('Subtotal', nf(s.Subtotal))}${s.Diskon ? L('Diskon', '-' + nf(s.Diskon)) : ''}${L('<b>TOTAL</b>', '<b>' + nf(s.Total) + '</b>')}${L('Bayar (' + e(s.Metode) + ')', nf(s.Bayar + s.Kembali))}${s.Kembali ? L('Kembali', nf(s.Kembali)) : ''}${s.Total > s.Bayar ? L('SISA PIUTANG', nf(s.Total - s.Bayar)) : ''}<hr><p>${e(S.cfg.footer_struk)}</p>`;
+  ${L('Subtotal', nf(s.Subtotal))}${s.Diskon ? L('Diskon', '-' + nf(s.Diskon)) : ''}${s.PPN ? L('PPN', nf(s.PPN)) : ''}${L('<b>TOTAL</b>', '<b>' + nf(s.Total) + '</b>')}${L('Bayar (' + e(s.Metode) + ')', nf(s.Bayar + s.Kembali))}${s.Kembali ? L('Kembali', nf(s.Kembali)) : ''}${s.Total > s.Bayar ? L('SISA PIUTANG', nf(s.Total - s.Bayar)) : ''}<hr><p>${e(S.cfg.footer_struk)}</p>`;
 }
 function printReceipt(s, items) {
   const html = `<html><head><title>${e(s.No)}</title><style>${RC_CSS}</style></head><body><div class="rc">${receiptBody(s, items)}</div></body></html>`;
@@ -386,9 +404,9 @@ async function pPenjualan(v) {
     const r = await api('list', { sheet: 'Penjualan', from: $('#pjF').value, to: $('#pjT').value }); r.reverse();
     window._pj = r;
     const ok = r.filter(x => x.Batal !== 'Y');
-    $('#pjR').innerHTML = tbl(['No', 'Tanggal', 'Pelanggan', 'Total', 'Bayar', 'Status', 'Kasir', ''], r.map(x => [x.No, tglID(x.Tanggal) + ' ' + x.Waktu, x.Pelanggan, x.Total, x.Bayar, H(badge(x.Status)),
-      x.Kasir, H(`<button class="btn s" data-receipt="${e(x.ID)}" onclick="strukLama(this.dataset.receipt)">Struk</button>${x.Status === 'Piutang' ? `<button class="btn s p" onclick="lunasi('jual','${x.ID}',${x.Total - x.Bayar},load_pj)">Bayar</button>` : ''}${isAdmin() && x.Batal !== 'Y' ? `<button class="btn s" onclick="returForm('${x.ID}',load_pj)">Retur</button><button class="btn s d" onclick="batal('jual','${x.ID}',load_pj)">Batal</button>` : ''}`)].map((c, i) => i === 7 ? { h: c.h, c: 'act' } : c)),
-      ['Total ' + ok.length + ' transaksi', '', '', sum(ok, 'Total'), sum(ok, 'Bayar'), '', '', '']);
+    $('#pjR').innerHTML = tbl(['No', 'Tanggal', 'Pelanggan', 'Total', 'Bayar', 'Status', 'Jatuh Tempo', 'Kasir', ''], r.map(x => [x.No, tglID(x.Tanggal) + ' ' + x.Waktu, x.Pelanggan, x.Total, x.Bayar, H(badge(x.Status)),
+      tglID(x.JatuhTempo), x.Kasir, H(`<button class="btn s" data-receipt="${e(x.ID)}" onclick="strukLama(this.dataset.receipt)">Struk</button>${x.Status === 'Piutang' ? `<button class="btn s p" onclick="lunasi('jual','${x.ID}',${x.Total - x.Bayar},load_pj)">Bayar</button>` : ''}${isAdmin() && x.Batal !== 'Y' ? `<button class="btn s" onclick="returForm('${x.ID}',load_pj)">Retur</button><button class="btn s d" onclick="batal('jual','${x.ID}',load_pj)">Batal</button>` : ''}`)].map((c, i) => i === 8 ? { h: c.h, c: 'act' } : c)),
+      ['Total ' + ok.length + ' transaksi', '', '', sum(ok, 'Total'), sum(ok, 'Bayar'), '', '', '', '']);
   };
   window.load_pj = load; $('#pjGo').onclick = load; load();
   window.strukLama = async id => {
@@ -398,7 +416,7 @@ async function pPenjualan(v) {
   };
 }
 function lunasi(type, id, sisa, cb) {
-  modal('Pelunasan', `<div class="fg"><label class="f"><span>Jumlah (sisa ${rp(sisa)})</span><input class="num" inputmode="numeric" id="lj" value="${nf(sisa)}"></label><label class="f"><span>Metode</span><select id="lm"><option>Tunai</option><option>Transfer</option><option>QRIS</option><option>Debit</option></select></label></div>`, async () => { await api('pay', { type, id, jumlah: unf($('#lj').value), metode: $('#lm').value }); toast('Pembayaran dicatat'); cb(); }, 'Catat');
+  modal('Pelunasan', `<div class="fg"><label class="f"><span>Nominal metode 1 (sisa ${rp(sisa)})</span><input class="num" inputmode="numeric" id="lj" value="${nf(sisa)}"></label><label class="f"><span>Metode 1</span><select id="lm"><option>Tunai</option><option>Transfer</option><option>QRIS</option><option>Debit</option></select></label><label class="f"><span>Nominal metode 2 (opsional)</span><input class="num" inputmode="numeric" id="lj2" value="0"></label><label class="f"><span>Metode 2</span><select id="lm2"><option>Transfer</option><option>QRIS</option><option>Tunai</option><option>Debit</option></select></label></div>`, async () => { const a=unf($('#lj').value),b=unf($('#lj2').value),payments=b>0?[{metode:$('#lm').value,jumlah:a},{metode:$('#lm2').value,jumlah:b}]:[]; await api('pay', { type, id, jumlah:a+b, metode:$('#lm').value, payments }); toast('Pembayaran dicatat'); cb(); }, 'Catat');
 }
 function batal(type, id, cb) {
   modal('Batalkan Transaksi', `<p>Stok akan dikembalikan otomatis. Tindakan ini tidak bisa dibatalkan.</p><br><label class="f"><span>Alasan</span><input id="ba" placeholder="mis. salah input"></label>`, async () => { await api('void', { type, id, alasan: $('#ba').value }); toast('Transaksi dibatalkan'); cb(); }, 'Batalkan transaksi');
@@ -411,9 +429,9 @@ async function pPembelian(v) {
   const load = async () => {
     const r = await api('list', { sheet: 'Pembelian', from: $('#pbF').value, to: $('#pbT').value }); r.reverse();
     const ok = r.filter(x => x.Batal !== 'Y');
-    $('#pbR').innerHTML = tbl(['No', 'Tanggal', 'Supplier', 'Total', 'PPN', 'Bayar', 'Status', 'User', ''], r.map(x => [x.No, tglID(x.Tanggal), x.Supplier, x.Total, x.PPN, x.Bayar, H(badge(x.Status)), x.User,
+    $('#pbR').innerHTML = tbl(['No', 'Tanggal', 'Supplier', 'Total', 'PPN', 'Bayar', 'Status', 'Jatuh Tempo', 'User', ''], r.map(x => [x.No, tglID(x.Tanggal), x.Supplier, x.Total, x.PPN, x.Bayar, H(badge(x.Status)), tglID(x.JatuhTempo), x.User,
       { h: `<button class="btn s" data-no="${e(x.No)}" data-tanggal="${e(x.Tanggal)}" onclick="detailBeli(this.dataset.no,this.dataset.tanggal)">Detail</button>${x.Status === 'Hutang' ? `<button class="btn s p" onclick="lunasi('beli','${x.ID}',${x.Total - x.Bayar},load_pb)">Bayar</button>` : ''}${x.Batal !== 'Y' ? `<button class="btn s" onclick="returBeliForm('${x.ID}',load_pb)">Retur</button><button class="btn s d" onclick="batal('beli','${x.ID}',load_pb)">Batal</button>` : ''}`, c: 'act' }]),
-      ['Total ' + ok.length + ' nota', '', '', sum(ok, 'Total'), sum(ok, 'PPN'), sum(ok, 'Bayar'), '', '', '']);
+      ['Total ' + ok.length + ' nota', '', '', sum(ok, 'Total'), sum(ok, 'PPN'), sum(ok, 'Bayar'), '', '', '', '']);
   };
   window.load_pb = load; $('#pbGo').onclick = load; load();
   window.detailBeli = async (no, t) => {
@@ -429,19 +447,19 @@ async function beliForm(done) {
   if (!items.length) return toast('Tambahkan data barang terlebih dahulu', true);
   const lbl = b => b.Kode + ' · ' + b.Nama + (b.Ukuran ? ' ' + b.Ukuran : '') + ' (stok ' + b.Stok + ')';
   const byL = {}; items.forEach(b => byL[lbl(b)] = b);
-  const rowH = () => `<tr><td><input class="bi" list="bl" placeholder="Ketik untuk cari barang" autocomplete="off" style="min-width:200px"></td><td><input class="bq num" inputmode="numeric" value="1" style="width:70px"></td><td><input class="bh num" inputmode="numeric" value="" placeholder="0" style="width:110px"></td><td class="r bs">0</td><td><button class="btn s d" onclick="this.closest('tr').remove();beliCalc()">×</button></td></tr>`;
+  const rowH = () => `<tr><td><input class="bi" list="bl" placeholder="Ketik untuk cari barang" autocomplete="off" style="min-width:180px"></td><td><input class="bq num" inputmode="numeric" value="1" style="width:60px"></td><td><input class="bh num" inputmode="numeric" value="" placeholder="0" style="width:100px"></td><td><input class="bdot" placeholder="DOT" style="width:75px"></td><td><input class="bgar num" inputmode="numeric" placeholder="bln" style="width:55px"></td><td class="r bs">0</td><td><button class="btn s d" onclick="this.closest('tr').remove();beliCalc()">×</button></td></tr>`;
   const m = modal('Pembelian Baru', `<div class="fg"><label class="f"><span>Tanggal</span><input type="date" id="bT" value="${today()}"></label><label class="f"><span>Supplier</span><input id="bS" list="supl" placeholder="Pilih / ketik nama"><datalist id="supl">${S.supplier.map(s => `<option value="${e(s.Nama)}">`).join('')}</datalist></label></div><datalist id="bl">${items.map(b => `<option value="${e(lbl(b))}">`).join('')}</datalist><br>
-  <div class="tw"><table><thead><tr><th>Barang</th><th>Qty</th><th>Harga beli</th><th class="r">Subtotal</th><th></th></tr></thead><tbody id="bRows">${rowH()}</tbody></table></div>
+  <div class="tw"><table><thead><tr><th>Barang</th><th>Qty</th><th>Harga beli</th><th>DOT</th><th>Garansi bln</th><th class="r">Subtotal</th><th></th></tr></thead><tbody id="bRows">${rowH()}</tbody></table></div>
   <button class="btn s" style="margin-top:8px" id="bAdd">+ Tambah baris</button>
-  <div class="fg" style="margin-top:14px"><label class="f"><span>PPN</span><select id="bP"><option value="none">Tanpa PPN</option><option value="exclude">Harga belum termasuk PPN (+${ppnRate()}%)</option><option value="include">Harga sudah termasuk PPN (${ppnRate()}%)</option></select></label><label class="f"><span>Dibayar (Rp) - kosong = lunas</span><input class="num" inputmode="numeric" id="bB"></label></div>
+  <div class="fg" style="margin-top:14px"><label class="f"><span>PPN</span><select id="bP"><option value="none">Tanpa PPN</option><option value="exclude">Harga belum termasuk PPN (+${ppnRate()}%)</option><option value="include">Harga sudah termasuk PPN (${ppnRate()}%)</option></select></label><label class="f"><span>Nominal metode 1</span><input class="num" inputmode="numeric" id="bB"></label><label class="f"><span>Metode 1</span><select id="bM"><option>Tunai</option><option>Transfer</option><option>QRIS</option><option>Debit</option></select></label><label class="f"><span>Nominal metode 2 (opsional)</span><input class="num" inputmode="numeric" id="bB2"></label><label class="f"><span>Metode 2</span><select id="bM2"><option>Transfer</option><option>QRIS</option><option>Tunai</option><option>Debit</option></select></label><label class="f"><span>Jatuh tempo hutang</span><input type="date" id="bDue"></label></div>
   <div style="margin-top:12px;text-align:right"><div class="note">Subtotal: <b id="bSub">Rp 0</b> &nbsp;·&nbsp; PPN: <b id="bPpn">Rp 0</b></div><div>Total: <b class="tot" id="bTot">Rp 0</b></div></div>`, async () => {
     const its = [...document.querySelectorAll('#bRows tr')].map(r => {
       const b = byL[r.querySelector('.bi').value];
       if (!b) throw new Error('Pilih barang dari daftar pada setiap baris');
-      return { id: b.ID, qty: unf(r.querySelector('.bq').value), harga: unf(r.querySelector('.bh').value) };
+      return { id: b.ID, qty: unf(r.querySelector('.bq').value), harga: unf(r.querySelector('.bh').value), dot:r.querySelector('.bdot').value, garansiBulan:unf(r.querySelector('.bgar').value) };
     });
-    const tot = ppnCalc(its.reduce((p, c) => p + c.qty * c.harga, 0), $('#bP').value).total, b = $('#bB').value;
-    await api('savePurchase', { tanggal: $('#bT').value, supplier: $('#bS').value, items: its, ppn: $('#bP').value, bayar: b === '' ? tot : unf(b) });
+    const tot = ppnCalc(its.reduce((p, c) => p + c.qty * c.harga, 0), $('#bP').value).total, b = $('#bB').value, b2=unf($('#bB2').value); const pays=b2>0?[{metode:$('#bM').value,jumlah:b===''?Math.max(0,tot-b2):unf(b)},{metode:$('#bM2').value,jumlah:b2}]:[];
+    await api('savePurchase', { tanggal: $('#bT').value, supplier: $('#bS').value, items: its, ppn: $('#bP').value, bayar: pays.length?pays.reduce((a,x)=>a+x.jumlah,0):(b === '' ? tot : unf(b)), payments:pays, metode:$('#bM').value, jatuhTempo:$('#bDue').value });
     toast('Pembelian tersimpan, stok bertambah'); done();
   }, 'Simpan Pembelian', true);
   window.beliCalc = () => { let t = 0; document.querySelectorAll('#bRows tr').forEach(r => { const s = unf(r.querySelector('.bq').value) * unf(r.querySelector('.bh').value); r.querySelector('.bs').textContent = nf(s); t += s; }); const pc = ppnCalc(t, $('#bP').value); $('#bSub').textContent = rp(t); $('#bPpn').textContent = rp(pc.ppn); $('#bTot').textContent = rp(pc.total); };
@@ -489,7 +507,7 @@ const pBarang = v => crud(v, {
   sheet: 'Barang', name: 'Barang', kasir: 0, csv: 1,
   def: () => ({ Satuan: 'Pcs', StokMin: 2 }),
   fields: [{ k: 'Kode', l: 'Kode (kosong = otomatis)' }, { k: 'Nama', l: 'Nama barang', req: 1 }, { k: 'Kategori', l: 'Kategori', t: 'select', o: cats }, { k: 'Merek', l: 'Merek' }, { k: 'Ukuran', l: 'Ukuran / Tipe', ph: 'mis. 185/65 R15' },
-    { k: 'Satuan', l: 'Satuan', t: 'select', o: ['Pcs', 'Set', 'Unit', 'Liter', 'Kali'] }, { k: 'HargaBeli', l: 'Harga beli', t: 'number' }, { k: 'HargaJual', l: 'Harga jual', t: 'number', req: 1 },
+    { k: 'Satuan', l: 'Satuan', t: 'select', o: ['Pcs', 'Set', 'Unit', 'Liter', 'Kali'] }, { k: 'HargaBeli', l: 'Harga beli', t: 'number' }, { k: 'HargaJual', l: 'Harga eceran', t: 'number', req: 1 }, { k: 'HargaGrosir', l: 'Harga grosir', t: 'number' }, { k: 'HargaBengkel', l: 'Harga bengkel', t: 'number' },
     { k: 'Stok', l: 'Stok awal', t: 'number', newOnly: 1 }, { k: 'StokMin', l: 'Stok minimum', t: 'number' }, { k: 'Lokasi', l: 'Lokasi rak' }, { k: 'Aktif', l: 'Status', t: 'select', o: [['Y', 'Aktif'], ['N', 'Nonaktif']], def: 'Y' }],
   cols: [['Kode', r => r.Kode], ['Nama', r => r.Nama + (r.Ukuran ? ' · ' + r.Ukuran : '')], ['Kategori', r => r.Kategori], ['Merek', r => r.Merek], ['Harga Beli', r => r.HargaBeli], ['Harga Jual', r => r.HargaJual],
     ['Stok', r => r.Kategori === 'Jasa' ? H('-') : H(`<span class="bd ${r.Stok <= 0 ? 'bad' : r.Stok <= r.StokMin ? 'warn' : 'ok'}">${r.Stok} ${e(r.Satuan)}</span>`)], ['Status', r => r.Aktif === 'N' ? 'Nonaktif' : 'Aktif']],
@@ -510,10 +528,17 @@ async function pMutasi(v) {
   $('#mtGo').onclick = load; load();
 }
 
+
+async function pServis(v){
+  v.innerHTML=`<div class="bar"><input id="svQ" placeholder="Cari plat nomor kendaraan"><button class="btn p" id="svGo">Cari</button><button class="btn a" id="svAdd">+ Catat Servis</button><input id="svWarranty" placeholder="Cari DOT / plat untuk cek garansi"><button class="btn" id="svWarrantyGo">Cek Garansi</button></div><div id="svRows"></div>`;
+  const load=async()=>{const rows=await api('serviceList',{plat:$('#svQ').value});const upcoming=rows.filter(x=>x.JadwalBerikut&&x.JadwalBerikut>=today()).length;$('#svRows').innerHTML=`<p class="note">Pengingat servis mendatang: ${upcoming} kendaraan tercatat.</p>`+tbl(['Tanggal','Plat Nomor','Pelanggan','Keluhan','Pekerjaan','Montir','Biaya Jasa','Komisi','Servis Berikut'],rows.map(x=>[tglID(x.Tanggal),x.PlatNomor,x.Pelanggan,x.Keluhan,x.Pekerjaan,x.Montir,x.BiayaJasa,x.Komisi,tglID(x.JadwalBerikut)]));};
+  $('#svGo').onclick=load;$('#svWarrantyGo').onclick=async()=>{try{const z=await api('warrantyInfo',{q:$('#svWarranty').value});$('#svRows').innerHTML=tbl(['Nota','Tanggal','Barang','DOT','Plat','Pelanggan','Garansi','Berlaku Sampai','Status'],z.map(x=>[x.NoNota,tglID(x.Tanggal),x.Barang,x.DOT,x.PlatNomor,x.Pelanggan,x.GaransiBulan+' bln',tglID(x.BerlakuSampai),x.Status]));}catch(x){fail(x);}};$('#svAdd').onclick=()=>formModal('Catat Riwayat Servis',[{k:'Tanggal',l:'Tanggal',t:'date',req:1,def:today()},{k:'PlatNomor',l:'Plat nomor',req:1},{k:'Pelanggan',l:'Nama pelanggan'},{k:'Keluhan',l:'Keluhan',t:'textarea',full:1},{k:'Pekerjaan',l:'Pekerjaan / jasa',t:'textarea',full:1},{k:'Barang',l:'Barang yang dipasang'},{k:'Montir',l:'Nama montir'},{k:'BiayaJasa',l:'Biaya jasa',t:'number'},{k:'Komisi',l:'Komisi montir',t:'number'},{k:'Km',l:'Kilometer',t:'number'},{k:'JadwalBerikut',l:'Jadwal servis berikutnya',t:'date'},{k:'Catatan',l:'Catatan',t:'textarea',full:1}],{},async row=>{await api('saveService',{row});toast('Riwayat servis disimpan');load();});load();
+}
+
 /* ============ LAPORAN ============ */
 async function pLaporan(v) {
   v.innerHTML = rangeBar('lp', 0, '<button class="btn" onclick="window.print()">Cetak</button><button class="btn" id="lpCsv">Ekspor CSV</button>') + '<div class="tabs" id="lpTabs"></div><div class="card"><div class="ph"><h2>' + e(S.cfg.nama_toko) + '</h2></div><div id="lpR"></div></div>';
-  const TABS = ['Laba Rugi', 'Penjualan', 'Produk Terjual', 'Pembelian', 'Stok Barang', 'Piutang & Hutang', 'Pengeluaran', 'Retur', 'Retur Beli', 'PPN Masukan'];
+  const TABS = ['Laba Rugi', 'Penjualan', 'Produk Terjual', 'Pembelian', 'Stok Barang', 'Piutang & Hutang', 'Pengeluaran', 'Retur', 'Retur Beli', 'PPN Masukan', 'PPN Keluaran', 'Komisi Montir'];
   let D = null, tab = 0, cur = null;
   const draw = () => {
     $('#lpTabs').innerHTML = TABS.map((t, i) => `<button class="${i === tab ? 'on' : ''}" data-t="${i}">${t}</button>`).join('');
@@ -536,7 +561,7 @@ async function pLaporan(v) {
       const bs = D.barang.filter(b => b.Kategori !== 'Jasa');
       heads = ['Kode', 'Barang', 'Kategori', 'Stok', 'Harga Beli', 'Nilai Beli', 'Nilai Jual']; rows = bs.map(b => [b.Kode, b.Nama + ' ' + b.Ukuran, b.Kategori, b.Stok, b.HargaBeli, b.Stok * b.HargaBeli, b.Stok * b.HargaJual]); foot = ['TOTAL', '', '', sum(bs, 'Stok'), '', rows.reduce((p, c) => p + c[5], 0), rows.reduce((p, c) => p + c[6], 0)];
     } else if (tab === 5) {
-      heads = ['Jenis', 'No', 'Tanggal', 'Pihak', 'Total', 'Bayar', 'Sisa']; rows = [...J.filter(x => x.Total > x.Bayar).map(x => ['Piutang', x.No, tglID(x.Tanggal), x.Pelanggan, x.Total, x.Bayar, x.Total - x.Bayar]), ...B.filter(x => x.Total > x.Bayar).map(x => ['Hutang', x.No, tglID(x.Tanggal), x.Supplier, x.Total, x.Bayar, x.Total - x.Bayar])];
+      heads = ['Jenis', 'No', 'Tanggal', 'Pihak', 'Total', 'Bayar', 'Sisa', 'Jatuh Tempo']; rows = [...J.filter(x => x.Total > x.Bayar).map(x => ['Piutang', x.No, tglID(x.Tanggal), x.Pelanggan, x.Total, x.Bayar, x.Total - x.Bayar, tglID(x.JatuhTempo)]), ...B.filter(x => x.Total > x.Bayar).map(x => ['Hutang', x.No, tglID(x.Tanggal), x.Supplier, x.Total, x.Bayar, x.Total - x.Bayar, tglID(x.JatuhTempo)])];
     } else if (tab === 6) {
       heads = ['Tanggal', 'Kategori', 'Keterangan', 'Jumlah']; rows = D.pengeluaran.map(x => [tglID(x.Tanggal), x.Kategori, x.Keterangan, x.Jumlah]); foot = ['TOTAL', '', '', sum(D.pengeluaran, 'Jumlah')];
     } else if (tab === 7) {
@@ -545,11 +570,15 @@ async function pLaporan(v) {
     } else if (tab === 8) {
       const RB = D.returBeli || [];
       heads = ['No Retur', 'Tanggal', 'Nota Beli', 'Supplier', 'Total', 'Potong Hutang', 'Uang Kembali', 'Alasan']; rows = RB.map(x => [x.No, tglID(x.Tanggal), x.NoNota, x.Supplier, x.Total, x.PotongHutang, x.UangKembali, x.Alasan]); foot = ['TOTAL', '', '', '', sum(RB, 'Total'), sum(RB, 'PotongHutang'), sum(RB, 'UangKembali'), ''];
-    } else {
+    } else if (tab === 9) {
       const RB = D.returBeli || [];
       heads = ['No', 'Tanggal', 'Supplier', 'DPP', 'PPN'];
       rows = [...B.filter(x => x.PPN > 0).map(x => [x.No, tglID(x.Tanggal), x.Supplier, x.Total - x.PPN, x.PPN]), ...RB.filter(x => x.PPN > 0).map(x => [x.No + ' (retur)', tglID(x.Tanggal), x.Supplier, -(x.Total - x.PPN), -x.PPN])];
       foot = ['TOTAL PPN MASUKAN', '', '', rows.reduce((p, c) => p + c[3], 0), rows.reduce((p, c) => p + c[4], 0)];
+    } else if (tab === 10) {
+      heads = ['No', 'Tanggal', 'Pelanggan', 'DPP', 'PPN Keluaran', 'Total']; rows = J.map(x => [x.No, tglID(x.Tanggal), x.Pelanggan, x.DPP || x.Total, x.PPN || 0, x.Total]); foot = ['TOTAL', '', '', sum(J,'DPP'), sum(J,'PPN'), sum(J,'Total')];
+    } else {
+      const comm=DJ.filter(x=>num(x.Komisi)>0); heads=['Tanggal','No Nota','Barang / Jasa','Montir','Qty','Komisi']; rows=comm.map(x=>[tglID(x.Tanggal),x.NoNota,x.Nama,x.Montir,x.Qty,x.Komisi]); foot=['TOTAL','','','', '',sum(comm,'Komisi')];
     }
     cur = { heads, rows, name: 'laporan-' + TABS[tab].replace(/\W+/g, '-').toLowerCase() };
     $('#lpR').innerHTML = `<h3>${TABS[tab]}</h3><p class="note" style="margin-bottom:10px">${tab === 4 ? 'Posisi stok saat ini' : per}</p>` + tbl(heads, rows, foot, true);
@@ -685,8 +714,8 @@ async function loadBackup() {
   const el = $('#bk'); if (!el) return;
   try {
     const r = await api('backupList');
-    el.innerHTML = `<p class="note" style="margin-bottom:10px">Backup harian otomatis: <span class="bd ${r.aktif ? 'ok' : 'bad'}">${r.aktif ? 'Aktif (setiap malam sekitar pukul 23.00)' : 'Belum aktif'}</span>. Salinan disimpan di Google Drive, folder "Backup Menara Ban" (30 terakhir).</p><div class="bar"><button class="btn p" id="bkNow">Backup Sekarang</button>${r.aktif ? '' : '<button class="btn a" id="bkAuto">Aktifkan Backup Harian</button>'}</div>${tbl(['Nama file', 'Dibuat', ''], r.files.map(f => [f.name, f.tgl, { h: `<a class="btn s" href="${e(f.url)}" target="_blank" rel="noopener">Buka</a>`, c: 'act' }]))}`;
-    $('#bkNow').onclick = async ev => { ev.target.disabled = true; try { await api('backupNow'); toast('Backup berhasil dibuat'); } catch (x) { fail(x); } loadBackup(); };
+    el.innerHTML = `<p class="note" style="margin-bottom:10px">Backup otomatis: <span class="bd ${r.aktif ? 'ok' : 'bad'}">${r.aktif ? 'Aktif' : 'Belum aktif'}</span>. Restore akan mengganti data sheet aktif dengan isi backup yang dipilih.</p><div class="bar"><button class="btn p" id="bkNow">Backup Sekarang</button>${r.aktif ? '' : '<button class="btn a" id="bkAuto">Aktifkan Backup Harian</button>'}<select id="bkPick"><option value="">Pilih backup untuk restore</option>${r.files.map(f=>`<option value="${e(f.id)}">${e(f.name)}</option>`).join('')}</select><button class="btn d" id="bkRestore">Restore</button></div><div class="bar"><input type="number" id="arYear" value="${new Date().getFullYear()-1}" min="2020" max="2099"><button class="btn" id="arMake">Buat Arsip Tahunan</button></div>${tbl(['Nama file', 'Dibuat', ''], r.files.map(f => [f.name, f.tgl, { h: `<a class="btn s" href="${e(f.url)}" target="_blank" rel="noopener">Buka</a>`, c: 'act' }]))}`;
+    $('#bkRestore').onclick=()=>{const id=$('#bkPick').value;if(!id)return toast('Pilih file backup',true);confirmBox('Data sheet saat ini akan diganti dengan isi backup. Buat backup baru sebelum melanjutkan. Lanjutkan?',async()=>{const z=await api('restoreBackup',{fileId:id});toast('Restore selesai. Backup pengaman dibuat sebelum pemulihan. Muat ulang aplikasi.');});}; $('#arMake').onclick=async()=>{try{const z=await api('archiveYear',{year:$('#arYear').value});window.open(z.Url,'_blank','noopener');toast('Arsip tahunan dibuat');}catch(x){fail(x);}}; $('#bkNow').onclick = async ev => { ev.target.disabled = true; try { await api('backupNow'); toast('Backup berhasil dibuat'); } catch (x) { fail(x); } loadBackup(); };
     if ($('#bkAuto')) $('#bkAuto').onclick = async () => { try { await api('backupAuto'); toast('Backup harian diaktifkan'); } catch (x) { fail(x); } loadBackup(); };
   } catch (x) { el.innerHTML = `<p class="note">${e(x.message)}</p>`; }
 }
@@ -770,3 +799,12 @@ async function pReturBeli(v) {
 /* ============ START ============ */
 if ('serviceWorker' in navigator) window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
 boot();
+
+async function syncOfflineSales(){
+  if(!S.token || !navigator.onLine)return;
+  let q=[];try{q=JSON.parse(localStorage.getItem('mb_offline_sales')||'[]');}catch(_){q=[];}
+  if(!q.length)return;
+  try{const out=await api('offlineSync',{items:q.map(x=>({clientId:x.clientId,payload:x.payload}))});const done=new Set(out.filter(x=>x.ok||x.duplicate).map(x=>x.clientId));q=q.filter(x=>!done.has(x.clientId));localStorage.setItem('mb_offline_sales',JSON.stringify(q));toast('Sinkronisasi offline selesai. Berhasil '+done.size+', tertunda/gagal '+q.length);}
+  catch(x){console.warn('Sinkronisasi offline:',x.message);}
+}
+window.addEventListener('online',()=>setTimeout(syncOfflineSales,1500));

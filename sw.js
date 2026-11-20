@@ -1,5 +1,5 @@
-const CACHE = "menara-ban-shell-v12";
-const SHELL = ["./", "./index.html", "./style.css?v=12", "./app.js?v=12", "./manifest.webmanifest", "./icon.svg"];
+const CACHE = "menara-ban-shell-v13";
+const SHELL = ["./", "./index.html", "./style.css?v=13", "./app.js?v=13", "./manifest.webmanifest", "./icon.svg"];
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting()));
 });
