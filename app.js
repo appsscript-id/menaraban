@@ -382,7 +382,7 @@ function strukModal(s, items) {
   modal('Struk ' + s.No, `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><button class="btn p" id="sP">Cetak</button><button class="btn" id="sWA">Kirim WhatsApp</button><button class="btn" id="sI">Simpan Gambar (PNG)</button><button class="btn" id="sD">Simpan PDF</button></div><div style="background:#eef1f4;padding:10px;border-radius:8px;overflow:auto"><div class="rc" id="rcp">${receiptBody(s, items)}</div></div>`);
   const shot = async () => { await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'); return html2canvas($('#rcp'), { scale: 2, backgroundColor: '#ffffff' }); };
   $('#sP').onclick = () => printReceipt(s, items);
-  $('#sWA').onclick = () => { const tel=(S.pelanggan.find(x=>x.Nama===s.Pelanggan)||{}).Telp||''; const digits=tel.replace(/\\D/g,'').replace(/^0/,'62'); const msg='Struk '+s.No+'\n'+S.cfg.nama_toko+'\n'+tglID(s.Tanggal)+'\nTotal: '+rp(s.Total)+'\nDibayar: '+rp(s.Bayar)+'\nSisa: '+rp(Math.max(0,s.Total-s.Bayar)); window.open('https://wa.me/'+digits+'?text='+encodeURIComponent(msg),'_blank','noopener'); };
+  $('#sWA').onclick = () => { const tel=(S.pelanggan.find(x=>x.Nama===s.Pelanggan)||{}).Telp||''; const digits=tel.replace(/\D/g,'').replace(/^0/,'62'); const msg='Struk '+s.No+'\n'+S.cfg.nama_toko+'\n'+tglID(s.Tanggal)+'\nTotal: '+rp(s.Total)+'\nDibayar: '+rp(s.Bayar)+'\nSisa: '+rp(Math.max(0,s.Total-s.Bayar)); window.open('https://wa.me/'+digits+'?text='+encodeURIComponent(msg),'_blank','noopener'); };
   $('#sI').onclick = async () => { try { const cv = await shot(), a = document.createElement('a'); a.href = cv.toDataURL('image/png'); a.download = fn + '.png'; a.click(); } catch (x) { fail(x); } };
   $('#sD').onclick = async () => {
     try {
@@ -494,13 +494,14 @@ async function notaLama(id) {
 function rangeBar(id, fn, extra) {
   return `<div class="bar"><label>Dari <input type="date" id="${id}F" value="${mStart()}"></label><label>Sampai <input type="date" id="${id}T" value="${today()}"></label><button class="btn p" id="${id}Go">Tampilkan</button>${extra || ''}</div>`;
 }
+// PERBAIKAN: id wadah diubah menjadi "<id>Qk" agar tidak bentrok dengan kolom pencarian #pjQ / #pbQ
 function quickBar(id) {
-  return `<div class="bar" id="${id}Q"><button class="btn s" data-q="0">Hari ini</button><button class="btn s" data-q="1">7 hari terakhir</button><button class="btn s" data-q="2">Bulan ini</button><button class="btn s" data-q="3">Bulan lalu</button></div>`;
+  return `<div class="bar" id="${id}Qk"><button class="btn s" data-q="0">Hari ini</button><button class="btn s" data-q="1">7 hari terakhir</button><button class="btn s" data-q="2">Bulan ini</button><button class="btn s" data-q="3">Bulan lalu</button></div>`;
 }
 function quickBind(id) {
   const iso = d => d.toLocaleDateString('sv-SE'), n = new Date();
   const R = [[today(), today()], [iso(new Date(Date.now() - 6 * 864e5)), today()], [mStart(), today()], [iso(new Date(n.getFullYear(), n.getMonth() - 1, 1)), iso(new Date(n.getFullYear(), n.getMonth(), 0))]];
-  document.querySelectorAll('#' + id + 'Q button').forEach(b => b.onclick = () => { const r = R[+b.dataset.q]; $('#' + id + 'F').value = r[0]; $('#' + id + 'T').value = r[1]; $('#' + id + 'Go').click(); });
+  document.querySelectorAll('#' + id + 'Qk button').forEach(b => b.onclick = () => { const r = R[+b.dataset.q]; $('#' + id + 'F').value = r[0]; $('#' + id + 'T').value = r[1]; $('#' + id + 'Go').click(); });
 }
 function fillOpts(sel, vals, label) {
   const cur = sel.value;
@@ -524,7 +525,7 @@ async function pPenjualan(v) {
     fillOpts($('#pjK'), r.map(x => x.Kasir), 'Semua kasir');
     draw();
   };
-  window.load_pj = load; $('#pjGo').onclick = load; quickBind('pj');
+  window.load_pj = load; $('#pjGo').onclick = () => load().catch(fail); quickBind('pj');
   ['#pjQ', '#pjS', '#pjM', '#pjK'].forEach(s => { $(s).oninput = $(s).onchange = draw; });
   $('#pjRs').onclick = () => { $('#pjQ').value = ''; $('#pjS').value = ''; $('#pjM').value = ''; $('#pjK').value = ''; draw(); };
   window.strukLama = async id => {
@@ -532,7 +533,7 @@ async function pPenjualan(v) {
     const d = (await api('list', { sheet: 'DetailPenjualan', from: s.Tanggal, to: s.Tanggal })).filter(x => x.NoNota === s.No);
     strukModal(s, d);
   };
-  load();
+  load().catch(fail);
 }
 function lunasi(type, id, sisa, cb) {
   modal('Pelunasan', `<div class="fg"><label class="f"><span>Nominal metode 1 (sisa ${rp(sisa)})</span><input class="num" inputmode="numeric" id="lj" value="${nf(sisa)}"></label><label class="f"><span>Metode 1</span><select id="lm"><option>Tunai</option><option>Transfer</option><option>QRIS</option><option>Debit</option></select></label><label class="f"><span>Nominal metode 2 (opsional)</span><input class="num" inputmode="numeric" id="lj2" value="0"></label><label class="f"><span>Metode 2</span><select id="lm2"><option>Transfer</option><option>QRIS</option><option>Tunai</option><option>Debit</option></select></label></div>`, async () => { const a=unf($('#lj').value),b=unf($('#lj2').value),payments=b>0?[{metode:$('#lm').value,jumlah:a},{metode:$('#lm2').value,jumlah:b}]:[]; await api('pay', { type, id, jumlah:a+b, metode:$('#lm').value, payments }); toast('Pembayaran dicatat'); cb(); }, 'Catat');
@@ -561,7 +562,7 @@ async function pPembelian(v) {
     fillOpts($('#pbSup'), DATA.map(x => x.Supplier), 'Semua supplier');
     draw();
   };
-  window.load_pb = load; $('#pbGo').onclick = load; quickBind('pb');
+  window.load_pb = load; $('#pbGo').onclick = () => load().catch(fail); quickBind('pb');
   ['#pbQ', '#pbS', '#pbSup'].forEach(s => { $(s).oninput = $(s).onchange = draw; });
   $('#pbRs').onclick = () => { $('#pbQ').value = ''; $('#pbS').value = ''; $('#pbSup').value = ''; draw(); };
   window.detailBeli = async (no, t) => {
@@ -569,7 +570,7 @@ async function pPembelian(v) {
     modal('Detail ' + no, tbl(['Barang', 'Qty', 'Harga', 'Subtotal'], d.map(x => [x.Nama, x.Qty, x.Harga, x.Subtotal])));
   };
   $('#pbNew').onclick = () => beliForm(load);
-  load();
+  load().catch(fail);
 }
 async function beliForm(done) {
   S.barang = await api('list', { sheet: 'Barang' });
@@ -656,14 +657,14 @@ async function pMutasi(v) {
     const r = (await api('list', { sheet: 'Mutasi', from: $('#mtF').value, to: $('#mtT').value })).reverse();
     $('#mtR').innerHTML = tbl(['Tanggal', 'Barang', 'Jenis', 'Qty', 'Stok Akhir', 'Ref', 'User', 'Ket'], r.map(x => [tglID(x.Tanggal) + ' ' + x.Waktu, x.Nama, x.Jenis, x.Qty, x.StokAkhir, x.Ref, x.User, x.Ket]));
   };
-  $('#mtGo').onclick = load; load();
+  $('#mtGo').onclick = () => load().catch(fail); load().catch(fail);
 }
 
 
 async function pServis(v){
   v.innerHTML=`<div class="bar"><input id="svQ" placeholder="Cari plat nomor kendaraan"><button class="btn p" id="svGo">Cari</button><button class="btn a" id="svAdd">+ Catat Servis</button><input id="svWarranty" placeholder="Cari DOT / plat untuk cek garansi"><button class="btn" id="svWarrantyGo">Cek Garansi</button></div><div id="svRows"></div>`;
   const load=async()=>{const rows=await api('serviceList',{plat:$('#svQ').value});const upcoming=rows.filter(x=>x.JadwalBerikut&&x.JadwalBerikut>=today()).length;$('#svRows').innerHTML=`<p class="note">Pengingat servis mendatang: ${upcoming} kendaraan tercatat.</p>`+tbl(['Tanggal','Plat Nomor','Pelanggan','Keluhan','Pekerjaan','Montir','Biaya Jasa','Komisi','Servis Berikut'],rows.map(x=>[tglID(x.Tanggal),x.PlatNomor,x.Pelanggan,x.Keluhan,x.Pekerjaan,x.Montir,x.BiayaJasa,x.Komisi,tglID(x.JadwalBerikut)]));};
-  $('#svGo').onclick=load;$('#svWarrantyGo').onclick=async()=>{try{const z=await api('warrantyInfo',{q:$('#svWarranty').value});$('#svRows').innerHTML=tbl(['Nota','Tanggal','Barang','DOT','Plat','Pelanggan','Garansi','Berlaku Sampai','Status'],z.map(x=>[x.NoNota,tglID(x.Tanggal),x.Barang,x.DOT,x.PlatNomor,x.Pelanggan,x.GaransiBulan+' bln',tglID(x.BerlakuSampai),x.Status]));}catch(x){fail(x);}};$('#svAdd').onclick=()=>formModal('Catat Riwayat Servis',[{k:'Tanggal',l:'Tanggal',t:'date',req:1,def:today()},{k:'PlatNomor',l:'Plat nomor',req:1},{k:'Pelanggan',l:'Nama pelanggan'},{k:'Keluhan',l:'Keluhan',t:'textarea',full:1},{k:'Pekerjaan',l:'Pekerjaan / jasa',t:'textarea',full:1},{k:'Barang',l:'Barang yang dipasang'},{k:'Montir',l:'Nama montir'},{k:'BiayaJasa',l:'Biaya jasa',t:'number'},{k:'Komisi',l:'Komisi montir',t:'number'},{k:'Km',l:'Kilometer',t:'number'},{k:'JadwalBerikut',l:'Jadwal servis berikutnya',t:'date'},{k:'Catatan',l:'Catatan',t:'textarea',full:1}],{},async row=>{await api('saveService',{row});toast('Riwayat servis disimpan');load();});load();
+  $('#svGo').onclick=()=>load().catch(fail);$('#svWarrantyGo').onclick=async()=>{try{const z=await api('warrantyInfo',{q:$('#svWarranty').value});$('#svRows').innerHTML=tbl(['Nota','Tanggal','Barang','DOT','Plat','Pelanggan','Garansi','Berlaku Sampai','Status'],z.map(x=>[x.NoNota,tglID(x.Tanggal),x.Barang,x.DOT,x.PlatNomor,x.Pelanggan,x.GaransiBulan+' bln',tglID(x.BerlakuSampai),x.Status]));}catch(x){fail(x);}};$('#svAdd').onclick=()=>formModal('Catat Riwayat Servis',[{k:'Tanggal',l:'Tanggal',t:'date',req:1,def:today()},{k:'PlatNomor',l:'Plat nomor',req:1},{k:'Pelanggan',l:'Nama pelanggan'},{k:'Keluhan',l:'Keluhan',t:'textarea',full:1},{k:'Pekerjaan',l:'Pekerjaan / jasa',t:'textarea',full:1},{k:'Barang',l:'Barang yang dipasang'},{k:'Montir',l:'Nama montir'},{k:'BiayaJasa',l:'Biaya jasa',t:'number'},{k:'Komisi',l:'Komisi montir',t:'number'},{k:'Km',l:'Kilometer',t:'number'},{k:'JadwalBerikut',l:'Jadwal servis berikutnya',t:'date'},{k:'Catatan',l:'Catatan',t:'textarea',full:1}],{},async row=>{await api('saveService',{row});toast('Riwayat servis disimpan');load();});load().catch(fail);
 }
 
 /* ============ LAPORAN ============ */
@@ -715,7 +716,7 @@ async function pLaporan(v) {
     $('#lpR').innerHTML = `<h3>${TABS[tab]}</h3><p class="note" style="margin-bottom:10px">${tab === 4 ? 'Posisi stok saat ini' : per}</p>` + tbl(heads, rows, foot, true);
   };
   const load = async () => { D = await api('report', { from: $('#lpF').value, to: $('#lpT').value }); draw(); };
-  $('#lpGo').onclick = load; $('#lpCsv').onclick = () => cur && csv(cur.name, cur.heads, cur.rows); draw(); load();
+  $('#lpGo').onclick = () => load().catch(fail); $('#lpCsv').onclick = () => cur && csv(cur.name, cur.heads, cur.rows); draw(); load().catch(fail);
 }
 
 /* ============ PENGATURAN ============ */
@@ -808,7 +809,7 @@ async function pRetur(v) {
     const d = (await api('list', { sheet: 'DetailRetur', from: t, to: t })).filter(x => x.NoRetur === no);
     modal('Detail ' + no, tbl(['Barang', 'Qty', 'Harga', 'Subtotal', 'Kondisi'], d.map(x => [x.Nama, x.Qty, x.Harga, x.Subtotal, x.Kondisi])));
   };
-  $('#rtGo').onclick = load; load();
+  $('#rtGo').onclick = () => load().catch(fail); load().catch(fail);
 }
 
 async function pTutup(v) {
@@ -838,7 +839,7 @@ async function pTutup(v) {
       try { await api('tutupSave', { tanggal: tgl, modal: unf($('#tkM').value), hitung: unf($('#tkH').value), catatan: $('#tkC').value }); toast('Tutup kasir tersimpan'); load(); } catch (x) { fail(x); ev.target.disabled = false; }
     };
   };
-  $('#tkGo').onclick = load; load();
+  $('#tkGo').onclick = () => load().catch(fail); load().catch(fail);
 }
 
 async function loadBackup() {
@@ -893,7 +894,7 @@ async function pReturBeli(v) {
     const d = (await api('list', { sheet: 'DetailReturBeli', from: t, to: t })).filter(x => x.NoRetur === no);
     modal('Detail ' + no, tbl(['Barang', 'Qty', 'Harga', 'Subtotal'], d.map(x => [x.Nama, x.Qty, x.Harga, x.Subtotal])));
   };
-  $('#rbGo').onclick = load; load();
+  $('#rbGo').onclick = () => load().catch(fail); load().catch(fail);
 }
 
 /* ============ TARIK UNTUK REFRESH ============ */
